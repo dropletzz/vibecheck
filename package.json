@@ -1,0 +1,33 @@
+{
+  "name": "vibecheck",
+  "version": "0.0.0",
+  "description": "",
+  "main": "node server.js",
+  "scripts": {
+    "build:client": "esbuild src/client/index.ts --bundle --global-name=vibecheck --outfile=build/public/index.js && node -e \"require('fs').copyFileSync('src/client/public/index.html','build/public/index.html')\"",
+    "build:server": "tsc",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node build/server.js",
+    "dev": "nodemon --watch src --ext ts,html --exec \"npm run build && npm start\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.18.0",
+    "esbuild": "^0.28.2",
+    "nodemon": "^3.1.14",
+    "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dropletzz/vibecheck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dropletzz/vibecheck/issues"
+  },
+  "homepage": "https://github.com/dropletzz/vibecheck#readme"
+}
