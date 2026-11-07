@@ -4,11 +4,11 @@
   "description": "",
   "main": "node server.js",
   "scripts": {
-    "build:client": "esbuild src/client/index.ts --bundle --global-name=vibecheck --outfile=build/public/index.js && node -e \"require('fs').copyFileSync('src/client/public/index.html','build/public/index.html')\"",
+    "build:client": "node build-client.js",
     "build:server": "tsc",
     "build": "npm run build:client && npm run build:server",
     "start": "node build/server.js",
-    "dev": "nodemon --watch src --ext ts,html --exec \"npm run build && npm start\""
+    "dev": "nodemon --watch src --ext ts,html,css --exec \"npm run build && npm start\""
   },
   "keywords": [],
   "author": "",

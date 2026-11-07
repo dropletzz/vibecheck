@@ -1,3 +1,6 @@
+// the page where the presenter directs the vibecheck
+
+// this code is just here for reference on how to use websockets
 const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const wsHost = window.location.host;
 const wsConnectionString = `${wsProtocol}://${wsHost}`;
@@ -21,3 +24,4 @@ socket.addEventListener("message", async event => {
 setInterval(() => {
     socket.send('"hey"');
 }, 1000);
+
