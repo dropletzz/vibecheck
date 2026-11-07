@@ -1,5 +1,6 @@
 # vibecheck
 
+
 ## idea
 this app allows users to create "forms" that can be compiled live and whose results can be immediately visualized.
 it's meant to be used relatively small contexts where the people using it are all in the same physical space. the presenter shows a qr code on the screen, the participants scan the qr code, access the webapp and can send answers, the results are then gathered and can be shown by the presenter in various ways.
@@ -16,5 +17,14 @@ for starters we will not care that much about security or protection from attack
 the code should be simple, concise and easily readable and understandable by a human (as much as possible). still, we think it's better to write some code oursevels and have control over it, rather than introducing a new dependency for every little thing we need to do.
 we don't like introducing dependencies and we don't like bloated frameworks.
 
+
+## UI
+tha UI should be simple, usable and mobile-first, while still looking nice on a wider screen.
+for now the css should be as simple as possible, no fancy-shmancy stuff, no freaking gradients.
+the ui is in italian.
+
+### colors
+light background, dark text and some nice pastel colours.
+do not use too many colors, use css vars for every color so that one day we could easily add other themes.
 
 
