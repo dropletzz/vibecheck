@@ -216,6 +216,7 @@ function renderEdit(): HTMLElement {
             el('button', { onclick: goToList }, '← indietro'),
             el('button', { onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
         ),
+        el('div', { class: 'vspace' }),
         nameInput,
         sectionsBox,
     );

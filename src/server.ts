@@ -26,6 +26,7 @@ const MIME_TYPES: Record<string, string> = {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
+    '.ttf': 'font/ttf',
 };
 
 // Serviamo i file del client, usando il server appena creato
