@@ -405,7 +405,7 @@ function renderTextFields(question: TextQuestion): HTMLElement {
             el('input', {
                 type: 'checkbox',
                 checked: question.multiple || null,
-                onchange: (event) => {
+                onchange: (event: Event) => {
                     question.multiple = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },

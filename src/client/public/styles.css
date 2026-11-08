@@ -278,6 +278,7 @@ label {
     position: sticky;
     top: 0;
     align-self: flex-end;
+    z-index: 1;
 }
 
 /* question kind picker */
