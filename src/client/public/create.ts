@@ -239,7 +239,7 @@ function renderQuestionFields(question: Question): HTMLElement {
                 el('input', {
                     type: 'text',
                     value: sliderQuestion.minLabel,
-                    oninput: (event) => {
+                    oninput: (event: InputEvent) => {
                         sliderQuestion.minLabel = (event.target as HTMLInputElement).value;
                         saveModels(models);
                     },
@@ -248,7 +248,7 @@ function renderQuestionFields(question: Question): HTMLElement {
                 el('input', {
                     type: 'text',
                     value: sliderQuestion.maxLabel,
-                    oninput: (event) => {
+                    oninput: (event: InputEvent) => {
                         sliderQuestion.maxLabel = (event.target as HTMLInputElement).value;
                         saveModels(models);
                     },
@@ -282,7 +282,7 @@ function renderTextFields(question: TextQuestion): HTMLElement {
             el('input', {
                 type: 'checkbox',
                 checked: question.multiple || null,
-                onchange: (event) => {
+                onchange: (event: ChangeEvent) => {
                     question.multiple = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },
@@ -328,7 +328,7 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
             el('input', {
                 type: 'checkbox',
                 checked: question.multiple || null,
-                onchange: (event) => {
+                onchange: (event: ChangeEvent) => {
                     question.multiple = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },
