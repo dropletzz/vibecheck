@@ -89,7 +89,7 @@ function renderList(): HTMLElement {
         el('h1', {}, 'i tuoi vibecheck'),
         el('div', { class: 'toolbar' },
             el('button', { onclick: () => fileInput.click() }, 'carica da file'),
-            el('button', { class: 'primary', onclick: createNew }, 'nuovo vibecheck'),
+            el('button', { onclick: createNew }, 'nuovo vibecheck'),
         ),
         list,
         el('p', { class: 'muted' }, 'i vibecheck vengono salvati automaticamente in questo browser'),
@@ -165,7 +165,7 @@ function renderEdit(): HTMLElement {
     return el('main', {},
         el('div', { class: 'row space-between' },
             el('button', { onclick: goToList }, '← indietro'),
-            el('button', { class: 'primary', onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
+            el('button', { onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
         ),
         titleNode,
         el('label', { for: 'vibecheck-name' }, 'nome'),
@@ -187,7 +187,6 @@ function addQuestion(kind: Question['kind']) {
 }
 
 function removeQuestion(index: number) {
-    if (!confirm('eliminare questa domanda?')) return;
     currentVibecheck().questions.splice(index, 1);
     saveModels(models);
     render();
@@ -220,9 +219,9 @@ function renderQuestionEditor(question: Question, index: number): HTMLElement {
         el('div', { class: 'question-header' },
             el('span', { class: 'kind-badge ' + question.kind }, kindLabel(question.kind)),
             el('span', { class: 'spacer' }),
-            el('button', { class: 'icon-btn', title: 'sposta su', onclick: () => moveQuestion(index, -1) }, '↑'),
-            el('button', { class: 'icon-btn', title: 'sposta giù', onclick: () => moveQuestion(index, 1) }, '↓'),
-            el('button', { class: 'icon-btn danger', title: 'elimina domanda', onclick: () => removeQuestion(index) }, '✕'),
+            el('button', { class: 'small', title: 'sposta su', onclick: () => moveQuestion(index, -1) }, '↑'),
+            el('button', { class: 'small', title: 'sposta giù', onclick: () => moveQuestion(index, 1) }, '↓'),
+            el('button', { class: 'small danger', title: 'elimina domanda', onclick: () => removeQuestion(index) }, '✕'),
         ),
         titleInput,
         renderQuestionFields(question),
@@ -307,7 +306,7 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
             },
         });
         const removeButton = el('button', {
-            class: 'icon-btn danger',
+            class: 'icon-btn danger small',
             title: 'elimina opzione',
             onclick: () => {
                 question.choices.splice(index, 1);
@@ -320,7 +319,7 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
 
     return el('div', {},
         choicesBox,
-        el('button', { onclick: () => {
+        el('button', { class: 'small', onclick: () => {
             question.choices.push('');
             saveModels(models);
             render();
@@ -346,7 +345,7 @@ function renderPreview(): HTMLElement {
     return el('main', {},
         el('div', { class: 'row space-between' },
             el('button', { onclick: goToList }, '← indietro'),
-            el('button', { class: 'primary', onclick: () => startEditing(vibecheck.id) }, 'modifica'),
+            el('button', { onclick: () => startEditing(vibecheck.id) }, 'modifica'),
         ),
         el('h1', {}, vibecheck.name || 'senza nome'),
         vibecheck.questions.length === 0

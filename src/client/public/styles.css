@@ -1,11 +1,12 @@
 /* vibecheck - shared styles */
 
 :root {
-    --bg: #f6f3ec;
+    --bg: #ffe8ff;
     --card: #ffffff;
     --text: #33302a;
     --muted: #8b8579;
     --border: #ddd7c9;
+
 
     --accent: #b9d3e8;
     --accent-strong: #6d95b8;
@@ -15,7 +16,13 @@
     --kind-text: #f0c8c8;
     --kind-choice: #c6dfbd;
 
-    --danger: #c46969;
+    --danger: #f37070;
+
+    --btn-depth: 6px;
+    --btn-depth-small: 4px;
+    --btn-depth-pressed: 2px;
+    --btn-darken-bottom: 15%;
+    --btn-darken-right: 35%;
 }
 
 * { box-sizing: border-box; }
@@ -41,35 +48,69 @@ h2 { font-size: 1.05rem; margin: 0; }
 .empty { color: var(--muted); text-align: center; padding: 32px 0; }
 
 button {
-    font: inherit;
-    color: var(--text);
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 14px;
-    cursor: pointer;
-}
-
-button:active { transform: translateY(1px); }
-
-button.primary {
+    position: relative;
+    padding: 6px 12px;
+    font-size: 16px;
     background: var(--accent);
-    border-color: var(--accent);
+    color: var(--text);
+    cursor: pointer;
+    border: none;
 }
+button::before { /* bottom face */
+    content: '';
+    position: absolute;
+    left: 0px;
+    bottom: calc(-1 * var(--btn-depth));
+    height: var(--btn-depth);
+    width: 100%;
+    background: color-mix(in srgb, black var(--btn-darken-bottom), var(--accent));
+    transform: skewX(45deg);
+    transform-origin: top left;
+}
+button::after { /* right face */
+    content: '';
+    position: absolute;
+    top: 0px;
+    right: calc(-1 * var(--btn-depth));
+    width: var(--btn-depth);
+    height: 100%;
+    background: color-mix(in srgb, black var(--btn-darken-right), var(--accent));
+    transform: skewY(45deg);
+    transform-origin: top left;
+}
+
+button:active {
+    transform: translate(
+        calc(var(--btn-depth) - var(--btn-depth-pressed)),
+        calc(var(--btn-depth) - var(--btn-depth-pressed))
+    );
+}
+button:active::before {
+    bottom: calc(-1 * var(--btn-depth-pressed));
+    height: var(--btn-depth-pressed);
+}
+button:active::after {
+    right: calc(-1 * var(--btn-depth-pressed));
+    width: var(--btn-depth-pressed);
+}
+
 
 button.danger {
-    color: var(--danger);
-    border-color: var(--danger);
+    background: var(--danger);
+}
+button.danger::before {
+    background: color-mix(in srgb, black var(--btn-darken-bottom), var(--danger));
+}
+button.danger::after {
+    background: color-mix(in srgb, black var(--btn-darken-right), var(--danger));
 }
 
-.icon-btn {
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    padding: 4px 10px;
-}
 
-.icon-btn.danger { color: var(--danger); }
+button.small {
+    --btn-depth: var(--btn-depth-small);
+    font-size: 12px;
+    padding: 3px 6px;
+}
 
 input[type='text'],
 textarea {
@@ -105,8 +146,7 @@ label {
 
 .card {
     background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    box-shadow: 3px 3px 0 0 var(--border);
     padding: 14px;
     margin-bottom: 12px;
 }
@@ -118,19 +158,12 @@ label {
 
 /* question editor */
 
-.question { border-left: 5px solid var(--border); }
-.question.dimension { border-left-color: var(--kind-dimension); }
-.question.opposition { border-left-color: var(--kind-opposition); }
-.question.text { border-left-color: var(--kind-text); }
-.question.choice { border-left-color: var(--kind-choice); }
-
 .question-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .question-header .spacer { flex: 1; }
 
 .kind-badge {
     font-size: 0.75rem;
     padding: 2px 8px;
-    border-radius: 999px;
 }
 
 .kind-badge.dimension { background: var(--kind-dimension); }
