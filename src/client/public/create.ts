@@ -123,19 +123,19 @@ function renderList(): HTMLElement {
 
     const list = el('div', {});
     if (models.length === 0) {
-        list.append(el('p', { class: 'empty' }, 'nessun vibecheck ancora'));
+        list.append(el('p', { class: 'empty' }, 'nessun vibecheck'));
     } else {
         for (const vibecheck of models) list.append(renderModelCard(vibecheck));
     }
 
     return el('main', {},
         el('h1', {}, 'i tuoi vibecheck'),
+        el('p', { class: 'muted' }, '(i vibecheck vengono salvati automaticamente in questo browser, se vuoi spostarli da un computer ad un altro salvali su file)'),
         el('div', { class: 'toolbar' },
             el('button', { onclick: () => fileInput.click() }, 'carica da file'),
-            el('button', { onclick: createNew }, 'nuovo vibecheck'),
+            el('button', { onclick: createNew }, 'nuovo'),
         ),
         list,
-        el('p', { class: 'muted' }, 'i vibecheck vengono salvati automaticamente in questo browser'),
         fileInput,
     );
 }
