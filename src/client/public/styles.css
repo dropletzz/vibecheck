@@ -46,6 +46,11 @@ h2 { font-size: 1.05rem; margin: 0; }
 
 .muted { color: var(--muted); }
 .empty { color: var(--muted); text-align: center; padding: 32px 0; }
+.vspace { height: 16px; }
+.centered-v { display: flex; align-items: center; }
+.flex-h { display: flex; justify-content: center; gap: 10px; }
+.flex-h > * { flex: 1; }
+
 
 button {
     position: relative;
@@ -55,6 +60,8 @@ button {
     color: var(--text);
     cursor: pointer;
     border: none;
+    margin-bottom: var(--btn-depth);
+    margin-right: var(--btn-depth);
 }
 button::before { /* bottom face */
     content: '';
@@ -105,7 +112,6 @@ button.danger::after {
     background: color-mix(in srgb, black var(--btn-darken-right), var(--danger));
 }
 
-
 button.small {
     --btn-depth: var(--btn-depth-small);
     font-size: 12px;
@@ -117,16 +123,22 @@ textarea {
     font: inherit;
     width: 100%;
     color: var(--text);
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--accent);
+    margin-bottom: 1px;
     padding: 8px 10px;
 }
 
 input[type='text']:focus,
 textarea:focus {
     outline: none;
-    border-color: var(--accent-strong);
+    border-bottom: 2px solid var(--accent-strong);
+    margin-bottom: 0px;
+}
+
+input[type='text'].title {
+    font-size: 24px;
 }
 
 input[type='range'] { width: 100%; }
@@ -151,10 +163,10 @@ label {
     margin-bottom: 12px;
 }
 
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .space-between { justify-content: space-between; }
 
-.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 20px; }
 
 /* question editor */
 
@@ -171,8 +183,16 @@ label {
 .kind-badge.text { background: var(--kind-text); }
 .kind-badge.choice { background: var(--kind-choice); }
 
-.choice-row { display: flex; gap: 6px; margin-bottom: 6px; }
-.choice-row input { flex: 1; }
+.choice-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+.choice-row input {
+    flex: 1;
+}
 
 .check-row {
     display: flex;
