@@ -10,6 +10,7 @@ import {
     Section,
     TextQuestion,
     VibecheckModel,
+    makeId,
     makeQuestion,
     makeSection,
     makeVibecheck,
@@ -110,6 +111,7 @@ function renderList(): HTMLElement {
             reader.onload = () => {
                 try {
                     const vibecheck = normalizeVibecheck(JSON.parse(String(reader.result)));
+                    vibecheck.id = makeId();
                     models.push(vibecheck);
                     saveModels(models);
                     render();
