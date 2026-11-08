@@ -17,3 +17,22 @@ the kinds of question will be:
 * testo libero: just a text input, the user creating the model can set a maximum length for the text using a slider (from 1 to 1000 characters) and can decide wheter multiple answers per person are allowed
 * scelta: a question with pre-defined choices, the user can optionally set it to allow multiple choice selection
 
+# iteration 1 - better ui and data model
+
+## sections
+a vibecheck model should be divided in sections, each section can contain any of questions. each section is kinda like a presentation's slide, the presenter will be able to move through sections while the participants will submit the answer to the questions in a section together.
+in this iterations we just modify the create.html UI and the data model, in order to handle sections.
+for the ui we want a section to be represented with the .card style, that is now being used for the questions. the questions in each section just have a border on the left, in order to graphically discern them. the section have a title that is optional, if the title is missing it's just now shown on the page.
+
+## other ui improvements
+the opposition question's slider will have a tick in the middle and the slider snaps to the middle when the user moves it close to it.
+the preview will open as a modal that can be closed ('x' button on top right) and will allow the user to mode trough the sections like they were slides of a presentation.
+in the 'edit' view there will be a '+ sezione' button at the beginning, at the end and between subsequent secions that creates a new section. similarly, inside each section, at the beginning, end and between subsequent questions there will be a '+ domanda' button.
+this '+ domanda' button opens a modal that graphically shows the types of question inside clickable squares (flex wrap it). each square has a background color that corresponds to the question kind and contains a simple example of how the question looks like:
+* dimension: 'dimensione' centered at the top, underneath there is a slider with labels '0' and '∞'
+* opposition: 'opposizione' centered at the top, underneath there is a slider with labels 'no' and 'yes'
+* text: 'testo' centered at the top, underneath there is text 'domanda' and an input with placeholder 'scrivi la risposta'
+* choice: 'scelta' centered at the top, underneath there is and example of a multiple choice question 'domanda' with options 'uno', 'due' and 'tre'.
+when the user clicks one of these squares the question is created
+also, the default labels for a new dimension question must be '0' and '∞', for a new opposition question they must be 'no' and 'yes'.
+

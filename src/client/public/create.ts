@@ -1,17 +1,26 @@
+// page where the user manages their vibechecks (models):
+// * list all created vibechecks
+// * create, edit and preview a vibecheck
+// * save a vibecheck to / load a vibecheck from a json file
+// the list of vibechecks is stored in localStorage
+
 import {
     ChoiceQuestion,
     Question,
+    Section,
     TextQuestion,
     VibecheckModel,
-    makeId,
     makeQuestion,
+    makeSection,
     makeVibecheck,
 } from '../../common';
-import { el, loadModels, renderQuestion, saveModels } from '../common';
+import { el, loadModels, normalizeVibecheck, renderQuestion, saveModels } from '../common';
 
 let models: VibecheckModel[] = loadModels();
-let view: 'list' | 'edit' | 'preview' = 'list';
+let view: 'list' | 'edit' = 'list';
 let editingId: string | null = null;
+let previewState: { id: string; sectionIndex: number } | null = null;
+let questionPicker: { sectionIndex: number; questionIndex: number } | null = null;
 
 function currentVibecheck(): VibecheckModel {
     const vibecheck = models.find((model) => model.id === editingId);
@@ -19,32 +28,64 @@ function currentVibecheck(): VibecheckModel {
     return vibecheck;
 }
 
-function render() {
-    const main =
-        view === 'list' ? renderList() :
-        view === 'edit' ? renderEdit() :
-        renderPreview()
-    document.body.replaceChildren(main);
+function render(preserveScroll = false) {
+    const scrollY = window.scrollY;
+    document.body.replaceChildren(renderMain());
+    if (preserveScroll) window.scrollTo(0, scrollY);
+    renderModals();
+}
+
+function renderMain(): HTMLElement {
+    return view === 'list' ? renderList() : renderEdit();
+}
+
+function renderModals() {
+    document.querySelector('.modal-root')?.remove();
+    if (!previewState && !questionPicker) return;
+    const modalRoot = el('div', { class: 'modal-root' });
+    if (previewState) modalRoot.append(renderPreviewModal());
+    if (questionPicker) modalRoot.append(renderQuestionPickerModal());
+    document.body.append(modalRoot);
 }
 
 function goToList() {
     view = 'list';
     editingId = null;
+    previewState = null;
+    questionPicker = null;
     render();
 }
 
 function startEditing(id: string) {
     editingId = id;
     view = 'edit';
+    previewState = null;
+    questionPicker = null;
     render();
 }
 
 function startPreviewing(id: string) {
-    editingId = id;
-    view = 'preview';
-    render();
+    previewState = { id, sectionIndex: 0 };
+    renderModals();
 }
 
+function closePreview() {
+    previewState = null;
+    renderModals();
+}
+
+function previewNav(delta: number) {
+    if (!previewState) return;
+    const vibecheck = models.find((model) => model.id === previewState.id);
+    if (!vibecheck) return;
+    previewState.sectionIndex = Math.min(
+        Math.max(0, previewState.sectionIndex + delta),
+        vibecheck.sections.length - 1,
+    );
+    renderModals();
+}
+
+// italian label shown in the ui for each question kind
 function kindLabel(kind: Question['kind']): string {
     switch (kind) {
         case 'dimension': return 'dimensione';
@@ -89,12 +130,12 @@ function renderList(): HTMLElement {
 
     return el('main', {},
         el('h1', {}, 'i tuoi vibecheck'),
-        el('p', { class: 'muted' }, '(i vibecheck vengono salvati automaticamente in questo browser, se vuoi spostarli da un computer ad un altro salvali su file)'),
         el('div', { class: 'toolbar' },
             el('button', { onclick: () => fileInput.click() }, 'carica da file'),
-            el('button', { onclick: createNew }, 'nuovo'),
+            el('button', { onclick: createNew }, 'nuovo vibecheck'),
         ),
         list,
+        el('p', { class: 'muted' }, 'i vibecheck vengono salvati automaticamente in questo browser'),
         fileInput,
     );
 }
@@ -107,10 +148,14 @@ function createNew() {
 }
 
 function renderModelCard(vibecheck: VibecheckModel): HTMLElement {
-    const count = vibecheck.questions.length;
-    const countLabel = count === 1 ? '1 domanda' : count + ' domande';
-    return el('div', { class: 'card' },
-        el('h2', {}, vibecheck.name || 'senza nome'),
+    const sectionCount = vibecheck.sections.length;
+    const questionCount = vibecheck.sections.reduce((total, section) => total + section.questions.length, 0);
+    const countLabel = (sectionCount === 1 ? '1 sezione' : sectionCount + ' sezioni')
+        + ', '
+        + (questionCount === 1 ? '1 domanda' : questionCount + ' domande');
+    const card = el('div', { class: 'card' });
+    if (vibecheck.name) card.append(el('h2', {}, vibecheck.name));
+    card.append(
         el('p', { class: 'muted' }, countLabel),
         el('div', { class: 'row' },
             el('button', { onclick: () => startEditing(vibecheck.id) }, 'modifica'),
@@ -119,6 +164,7 @@ function renderModelCard(vibecheck: VibecheckModel): HTMLElement {
             el('button', { class: 'danger', onclick: () => deleteVibecheck(vibecheck.id) }, 'elimina'),
         ),
     );
+    return card;
 }
 
 function downloadVibecheck(vibecheck: VibecheckModel) {
@@ -135,7 +181,7 @@ function downloadVibecheck(vibecheck: VibecheckModel) {
 function deleteVibecheck(id: string) {
     const vibecheck = models.find((model) => model.id === id);
     if (!vibecheck) return;
-    if (!confirm('eliminare "' + (vibecheck.name || 'senza nome') + '"?')) return;
+    if (!confirm('vuoi eliminare "' + (vibecheck.name || 'senza nome') + '"?')) return;
     models = models.filter((model) => model.id !== id);
     saveModels(models);
     render();
@@ -158,52 +204,126 @@ function renderEdit(): HTMLElement {
         },
     });
 
-    const questionsBox = el('div', {});
-    vibecheck.questions.forEach((question, index) => {
-        questionsBox.append(renderQuestionEditor(question, index));
+    const sectionsBox = el('div', {});
+    sectionsBox.append(insertSectionButton(0));
+    vibecheck.sections.forEach((section, sectionIndex) => {
+        sectionsBox.append(renderSectionEditor(section, sectionIndex));
+        sectionsBox.append(insertSectionButton(sectionIndex + 1));
     });
 
     return el('main', {},
         el('div', { class: 'row space-between' },
-            el('button', { onclick: goToList }, '←'),
+            el('button', { onclick: goToList }, '← indietro'),
             el('button', { onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
         ),
-        el('div', { class: 'vspace' }),
         nameInput,
-        el('div', { class: 'toolbar' },
-            el('button', { onclick: () => addQuestion('dimension') }, '+ dimensione'),
-            el('button', { onclick: () => addQuestion('opposition') }, '+ opposizione'),
-            el('button', { onclick: () => addQuestion('text') }, '+ testo libero'),
-            el('button', { onclick: () => addQuestion('choice') }, '+ scelta'),
+        sectionsBox,
+    );
+}
+
+function insertSectionButton(index: number): HTMLElement {
+    return el('button', { class: 'insert', onclick: () => {
+        const section = makeSection();
+        currentVibecheck().sections.splice(index, 0, section);
+        saveModels(models);
+        render(true);
+        document.querySelector('[data-section-id="' + section.id + '"]')?.scrollIntoView({ block: 'center' });
+    } }, '+ sezione');
+}
+
+function renderSectionEditor(section: Section, sectionIndex: number): HTMLElement {
+    const vibecheck = currentVibecheck();
+
+    const titleInput = el('input', {
+        class: 'section-title-input',
+        type: 'text',
+        placeholder: 'titolo della sezione (opzionale)',
+        value: section.title,
+        oninput: () => {
+            section.title = titleInput.value;
+            saveModels(models);
+        },
+    });
+
+    const questionsBox = el('div', {});
+    questionsBox.append(insertQuestionButton(sectionIndex, 0));
+    section.questions.forEach((question, questionIndex) => {
+        questionsBox.append(renderQuestionEditor(question, sectionIndex, questionIndex));
+        questionsBox.append(insertQuestionButton(sectionIndex, questionIndex + 1));
+    });
+
+    return el('div', { class: 'card', 'data-section-id': section.id },
+        el('div', { class: 'section-header' },
+            titleInput,
+            el('button', { class: 'small danger', title: 'elimina sezione', onclick: () => {
+                if (!confirm('vuoi eliminare questa intera sezione?')) return;
+                vibecheck.sections.splice(sectionIndex, 1);
+                saveModels(models);
+                render(true);
+            } }, '✕'),
         ),
         questionsBox,
     );
 }
 
-function addQuestion(kind: Question['kind']) {
-    currentVibecheck().questions.push(makeQuestion(kind));
-    saveModels(models);
-    render();
+function insertQuestionButton(sectionIndex: number, questionIndex: number): HTMLElement {
+    return el('button', { class: 'insert', onclick: () => openQuestionPicker(sectionIndex, questionIndex) }, '+ domanda');
 }
 
-function removeQuestion(index: number) {
-    currentVibecheck().questions.splice(index, 1);
-    saveModels(models);
-    render();
+function openQuestionPicker(sectionIndex: number, questionIndex: number) {
+    questionPicker = { sectionIndex, questionIndex };
+    renderModals();
 }
 
-function moveQuestion(index: number, delta: number) {
-    const questions = currentVibecheck().questions;
-    const target = index + delta;
-    if (target < 0 || target >= questions.length) return;
-    const [question] = questions.splice(index, 1);
-    questions.splice(target, 0, question);
-    saveModels(models);
-    render();
+function closeQuestionPicker() {
+    questionPicker = null;
+    renderModals();
 }
 
-function renderQuestionEditor(question: Question, index: number): HTMLElement {
-    const card = el('div', { class: 'card question ' + question.kind });
+function pickQuestionKind(kind: Question['kind']) {
+    if (!questionPicker) return;
+    const section = currentVibecheck().sections[questionPicker.sectionIndex];
+    const question = makeQuestion(kind);
+    section.questions.splice(questionPicker.questionIndex, 0, question);
+    questionPicker = null;
+    saveModels(models);
+    render(true);
+    document.querySelector('[data-question-id="' + question.id + '"]')?.scrollIntoView({ block: 'center' });
+}
+
+function removeQuestion(sectionIndex: number, questionIndex: number) {
+    currentVibecheck().sections[sectionIndex].questions.splice(questionIndex, 1);
+    saveModels(models);
+    render(true);
+}
+
+function moveQuestion(sectionIndex: number, questionIndex: number, delta: number) {
+    const sections = currentVibecheck().sections;
+    const questions = sections[sectionIndex].questions;
+    const target = questionIndex + delta;
+
+    if (target >= 0 && target < questions.length) {
+        // move within the same section
+        const [question] = questions.splice(questionIndex, 1);
+        questions.splice(target, 0, question);
+    } else if (delta < 0 && sectionIndex > 0) {
+        // move up into the end of the previous section
+        const [question] = questions.splice(questionIndex, 1);
+        sections[sectionIndex - 1].questions.push(question);
+    } else if (delta > 0 && sectionIndex < sections.length - 1) {
+        // move down into the start of the next section
+        const [question] = questions.splice(questionIndex, 1);
+        sections[sectionIndex + 1].questions.unshift(question);
+    } else {
+        return; // nothing to move
+    }
+
+    saveModels(models);
+    render(true);
+}
+
+function renderQuestionEditor(question: Question, sectionIndex: number, questionIndex: number): HTMLElement {
+    const box = el('div', { class: 'question ' + question.kind, 'data-question-id': question.id });
 
     const titleInput = el('input', {
         type: 'text',
@@ -215,19 +335,17 @@ function renderQuestionEditor(question: Question, index: number): HTMLElement {
         },
     });
 
-    card.append(
+    box.append(
+        el('span', { class: 'kind-badge ' + question.kind }, kindLabel(question.kind)),
         el('div', { class: 'question-header' },
-            el('span', { class: 'kind-badge ' + question.kind }, kindLabel(question.kind)),
-            el('span', { class: 'spacer' }),
-            el('button', { class: 'small', title: 'sposta su', onclick: () => moveQuestion(index, -1) }, '↑'),
-            el('button', { class: 'small', title: 'sposta giù', onclick: () => moveQuestion(index, 1) }, '↓'),
-            el('button', { class: 'small danger', title: 'elimina domanda', onclick: () => removeQuestion(index) }, '✕'),
+            el('button', { class: 'small', title: 'sposta su', onclick: () => moveQuestion(sectionIndex, questionIndex, -1) }, '↑'),
+            el('button', { class: 'small', title: 'sposta giù', onclick: () => moveQuestion(sectionIndex, questionIndex, 1) }, '↓'),
+            el('button', { class: 'small danger', title: 'elimina domanda', onclick: () => removeQuestion(sectionIndex, questionIndex) }, '✕'),
         ),
         titleInput,
-        el('div', { class: 'vspace' }),
         renderQuestionFields(question),
     );
-    return card;
+    return box;
 }
 
 function renderQuestionFields(question: Question): HTMLElement {
@@ -287,12 +405,12 @@ function renderTextFields(question: TextQuestion): HTMLElement {
             el('input', {
                 type: 'checkbox',
                 checked: question.multiple || null,
-                onchange: (event: ChangeEvent) => {
+                onchange: (event) => {
                     question.multiple = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },
             }),
-            el('span', {}, 'accetta più di una risposta'),
+            el('span', {}, 'più risposte per persona'),
         ),
     );
 }
@@ -316,7 +434,7 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
             onclick: () => {
                 question.choices.splice(index, 1);
                 saveModels(models);
-                render();
+                render(true);
             },
         }, '✕');
         choicesBox.append(el('div', { class: 'choice-row' },
@@ -330,13 +448,13 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
         el('button', { onclick: () => {
             question.choices.push('');
             saveModels(models);
-            render();
+            render(true);
         } }, '+ aggiungi opzione'),
         el('label', { class: 'check-row' },
             el('input', {
                 type: 'checkbox',
                 checked: question.multiple || null,
-                onchange: (event: ChangeEvent) => {
+                onchange: (event: Event) => {
                     question.multiple = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },
@@ -346,70 +464,93 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
     );
 }
 
-// ---------- preview view ----------
+// ---------- preview modal ----------
 
-function renderPreview(): HTMLElement {
-    const vibecheck = currentVibecheck();
-    return el('main', {},
-        el('div', { class: 'row space-between' },
-            el('button', { onclick: goToList }, '←'),
-            el('button', { onclick: () => startEditing(vibecheck.id) }, 'modifica'),
-        ),
-        el('div', { class: 'vspace' }),
-        el('h1', {}, vibecheck.name || 'senza nome'),
-        vibecheck.questions.length === 0
-            ? el('p', { class: 'empty' }, 'questo vibecheck non ha ancora domande')
-            : el('div', {}, ...vibecheck.questions.map((question) => renderQuestion(question))),
+function renderPreviewModal(): HTMLElement {
+    if (!previewState) return el('div', {});
+    const vibecheck = models.find((model) => model.id === previewState.id);
+    const overlay = el('div', { class: 'modal-overlay' });
+    if (!vibecheck) return overlay;
+
+    const index = Math.min(Math.max(0, previewState.sectionIndex), vibecheck.sections.length - 1);
+    const section = vibecheck.sections[index];
+
+    const modal = el('div', { class: 'modal' },
+        el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: closePreview }, '✕'),
     );
-}
+    if (vibecheck.name) modal.append(el('h1', {}, vibecheck.name));
 
-// ---------- file import ----------
-
-function normalizeVibecheck(raw: any): VibecheckModel {
-    if (!raw || typeof raw !== 'object' || typeof raw.name !== 'string' || !Array.isArray(raw.questions)) {
-        throw new Error('invalid vibecheck');
-    }
-    return {
-        id: typeof raw.id === 'string' ? raw.id : makeId(),
-        name: raw.name,
-        questions: raw.questions.map(normalizeQuestion),
-    };
-}
-
-function normalizeQuestion(raw: any): Question {
-    if (!raw || typeof raw !== 'object') throw new Error('invalid question');
-    const base = {
-        id: typeof raw.id === 'string' ? raw.id : makeId(),
-        title: typeof raw.title === 'string' ? raw.title : '',
-    };
-    switch (raw.kind) {
-        case 'dimension':
-        case 'opposition':
-            return {
-                ...base,
-                kind: raw.kind,
-                minLabel: typeof raw.minLabel === 'string' ? raw.minLabel : '',
-                maxLabel: typeof raw.maxLabel === 'string' ? raw.maxLabel : '',
-            };
-        case 'text': {
-            const maxLength = Number(raw.maxLength);
-            const clamped = Number.isFinite(maxLength)
-                ? Math.min(1000, Math.max(1, Math.round(maxLength)))
-                : 200;
-            return { ...base, kind: raw.kind, maxLength: clamped, multiple: raw.multiple === true };
+    if (!section) {
+        modal.append(el('p', { class: 'empty' }, 'questo vibecheck non ha ancora sezioni'));
+    } else {
+        if (section.title) modal.append(el('h2', {}, section.title));
+        if (section.questions.length === 0) {
+            modal.append(el('p', { class: 'empty' }, 'questa sezione non ha domande'));
+        } else {
+            modal.append(el('div', {}, ...section.questions.map((question) => renderQuestion(question))));
         }
-        case 'choice':
-            return {
-                ...base,
-                kind: raw.kind,
-                multiple: raw.multiple === true,
-                choices: Array.isArray(raw.choices)
-                    ? raw.choices.filter((choice: any) => typeof choice === 'string')
-                    : [],
-            };
-        default:
-            throw new Error('invalid question kind');
+        modal.append(el('div', { class: 'row space-between' },
+            el('button', { class: 'small', disabled: index === 0 || null, onclick: () => previewNav(-1) }, '← indietro'),
+            el('span', { class: 'muted' }, (index + 1) + ' / ' + vibecheck.sections.length),
+            el('button', { class: 'small', disabled: index >= vibecheck.sections.length - 1 || null, onclick: () => previewNav(1) }, 'avanti →'),
+        ));
     }
+
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) closePreview();
+    });
+    overlay.append(modal);
+    return overlay;
+}
+
+// ---------- question kind picker modal ----------
+
+function renderQuestionPickerModal(): HTMLElement {
+    const overlay = el('div', { class: 'modal-overlay' });
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) closeQuestionPicker();
+    });
+    overlay.append(el('div', { class: 'modal' },
+        el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: closeQuestionPicker }, '✕'),
+        el('h2', {}, 'nuova domanda'),
+        el('div', { class: 'kind-grid' },
+            renderKindSquare('dimension'),
+            renderKindSquare('opposition'),
+            renderKindSquare('text'),
+            renderKindSquare('choice'),
+        ),
+    ));
+    return overlay;
+}
+
+function renderKindSquare(kind: Question['kind']): HTMLElement {
+    const square = el('div', { class: 'kind-square ' + kind, onclick: () => pickQuestionKind(kind) });
+    square.append(el('div', { class: 'kind-square-title' }, kindLabel(kind)));
+    const preview = el('div', { class: 'preview' });
+    if (kind === 'dimension' || kind === 'opposition') {
+        preview.append(
+            el('div', { class: 'slider-labels' },
+                el('span', {}, kind === 'dimension' ? '0' : 'no'),
+                el('span', {}, kind === 'dimension' ? '∞' : 'sì'),
+            ),
+            el('input', { type: 'range', disabled: true, value: kind === 'dimension' ? '0' : '50' }),
+        );
+    } else if (kind === 'text') {
+        preview.append(
+            el('div', {}, 'domanda'),
+            el('input', { type: 'text', placeholder: 'scrivi la risposta', disabled: true }),
+        );
+    } else {
+        preview.append(
+            el('div', {}, 'domanda'),
+            ...['uno', 'due', 'tre'].map((option) => el('label', { class: 'check-row' },
+                el('input', { type: 'radio', name: 'example-choice', disabled: true }),
+                el('span', {}, option),
+            )),
+        );
+    }
+    square.append(preview);
+    return square;
 }
 
 render();
