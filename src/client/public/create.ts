@@ -445,7 +445,7 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
 
     return el('div', {},
         choicesBox,
-        el('button', { onclick: () => {
+        el('button', { class: 'small', onclick: () => {
             question.choices.push('');
             saveModels(models);
             render(true);
