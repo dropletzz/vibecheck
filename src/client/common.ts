@@ -1,6 +1,13 @@
 // code shared by the frontend pages
 
-import { makeId, Question, Section, VibecheckModel } from '../common';
+import {
+    makeId,
+    Question,
+    DimensionQuestion,
+    OppositionQuestion,
+    Section,
+    VibecheckModel
+} from '../common';
 
 // tiny helper to build dom elements
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -25,8 +32,6 @@ export function el<K extends keyof HTMLElementTagNameMap>(
     return node;
 }
 
-// renders a question the way the participant will see it
-// (used both by the preview and by the live answering pages)
 export function renderQuestion(question: Question): HTMLElement {
     const box = el('div', { class: 'question ' + question.kind });
 

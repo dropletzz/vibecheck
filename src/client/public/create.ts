@@ -172,11 +172,11 @@ function renderModelCard(vibecheck: VibecheckModel): HTMLElement {
     card.append(
         el('p', { class: 'muted' }, countLabel),
         el('div', { class: 'row' },
-            el('button', { onclick: () => startLive(vibecheck) }, 'avvia live'),
-            el('button', { onclick: () => startEditing(vibecheck.id) }, 'modifica'),
-            el('button', { onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
-            el('button', { onclick: () => downloadVibecheck(vibecheck) }, 'salva su file'),
-            el('button', { class: 'danger', onclick: () => deleteVibecheck(vibecheck.id) }, 'elimina'),
+            el('button', { class: 'small', onclick: () => startLive(vibecheck) }, 'avvia live'),
+            el('button', { class: 'small', onclick: () => startEditing(vibecheck.id) }, 'modifica'),
+            el('button', { class: 'small', onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
+            el('button', { class: 'small', onclick: () => downloadVibecheck(vibecheck) }, 'salva su file'),
+            el('button', { class: 'small danger', onclick: () => deleteVibecheck(vibecheck.id) }, 'elimina'),
         ),
     );
     return card;
@@ -339,7 +339,7 @@ function moveQuestion(sectionIndex: number, questionIndex: number, delta: number
 }
 
 function renderQuestionEditor(question: Question, sectionIndex: number, questionIndex: number): HTMLElement {
-    const box = el('div', { class: 'question ' + question.kind, 'data-question-id': question.id });
+    const box = el('div', { class: 'question-editor ' + question.kind, 'data-question-id': question.id });
 
     const titleInput = el('input', {
         type: 'text',
@@ -491,7 +491,7 @@ function renderPreviewModal(): HTMLElement {
     const index = Math.min(Math.max(0, previewState.sectionIndex), vibecheck.sections.length - 1);
     const section = vibecheck.sections[index];
 
-    const modal = el('div', { class: 'modal' },
+    const modal = el('div', { class: 'modal alt-bg' },
         el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: closePreview }, '✕'),
     );
     if (vibecheck.name) modal.append(el('h1', {}, vibecheck.name));
