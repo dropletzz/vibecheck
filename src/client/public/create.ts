@@ -146,6 +146,21 @@ function createNew() {
     startEditing(vibecheck.id);
 }
 
+async function startLive(vibecheck: VibecheckModel) {
+    try {
+        const response = await fetch('/api/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(vibecheck),
+        });
+        const data = await response.json();
+        localStorage.setItem('vibecheck.nonce.' + data.id, data.nonce);
+        window.location.href = '/live-present.html?id=' + data.id;
+    } catch {
+        alert('impossibile avviare la sessione live');
+    }
+}
+
 function renderModelCard(vibecheck: VibecheckModel): HTMLElement {
     const sectionCount = vibecheck.sections.length;
     const questionCount = vibecheck.sections.reduce((total, section) => total + section.questions.length, 0);
@@ -157,6 +172,7 @@ function renderModelCard(vibecheck: VibecheckModel): HTMLElement {
     card.append(
         el('p', { class: 'muted' }, countLabel),
         el('div', { class: 'row' },
+            el('button', { onclick: () => startLive(vibecheck) }, 'avvia live'),
             el('button', { onclick: () => startEditing(vibecheck.id) }, 'modifica'),
             el('button', { onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),
             el('button', { onclick: () => downloadVibecheck(vibecheck) }, 'salva su file'),

@@ -61,7 +61,7 @@ export function renderQuestion(question: Question): HTMLElement {
     } else {
         box.append(el('div', {},
             ...question.choices.map((choice) => el('label', { class: 'check-row' },
-                el('input', { type: question.multiple ? 'checkbox' : 'radio', name: question.id }),
+                el('input', { type: question.multiple ? 'checkbox' : 'radio', name: question.id, value: choice }),
                 el('span', {}, choice || 'opzione vuota'),
             )),
         ));

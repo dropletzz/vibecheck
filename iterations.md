@@ -36,3 +36,18 @@ this '+ domanda' button opens a modal that graphically shows the types of questi
 when the user clicks one of these squares the question is created
 also, the default labels for a new dimension question must be '0' and '∞', for a new opposition question they must be 'no' and 'yes'.
 
+
+# iteration 2 - let's go live
+now we will allow the presenter to start a live session and share it with the participans.
+it will be just a link for now, no qr code generation.
+the presenter will move from one section to the other, after a section has been answered the ppresenter will be able to close the poll and move to a view where the results are shown, then she will be able to go on to the next section.
+the view where results are shown should be very simple for now, we will work on that in the next iterations. just average and variance for dimensions and oppositions, counts for choices, list of answers for text.
+while the participants are answering the presenter's view should show the question and the number of answers submitted, upating live.
+
+the id for the 'session' is generated on the backend, the participants will visit `/live.html?id=sessionId`, the presenter's page url will look like `/live-present.html?id=sessionId`. upon starting a live session the presente will be given a nonce (a random string) generated on the backend, the presenter will save it in localstorage, this will serve as some weak authentication so that if a participant tries to change their url to the presenter's url they will be blocked because they don't have the nonce.
+
+## backend
+in the backend create a Store class that keeps the state of the whole app in a big js object. and exposes methods to read and write it.
+users will be identified with ids generated on the backend and saved on the client via cookies.
+
+
