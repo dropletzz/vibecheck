@@ -1,20 +1,26 @@
 :root {
-    --bg: #ffe8ff;
+    --pink: #ffe8ff;
+    --light-blue: #b9d3e8;
+    --yellow: #f1dcae;
+    --light-red: #f0c8c8;
+    --green: #c6dfbd;
+    --red: #f37070;
+
+    --bg: var(--pink);
     --card: #ffffff;
     --text: #33302a;
     --muted: #8b8579;
     --border: #ddd7c9;
 
-
-    --accent: #b9d3e8;
+    --accent: var(--light-blue);
     --accent-strong: #6d95b8;
 
-    --kind-dimension: #b9d3e8;
-    --kind-opposition: #f1dcae;
-    --kind-text: #f0c8c8;
-    --kind-choice: #c6dfbd;
+    --kind-dimension: var(--light-blue);
+    --kind-opposition: var(--yellow);
+    --kind-text: var(--light-red);
+    --kind-choice: var(--green);
 
-    --danger: #f37070;
+    --danger: var(--red);
 
     --btn-depth: 6px;
     --btn-depth-small: 4px;
