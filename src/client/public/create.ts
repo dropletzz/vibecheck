@@ -1,9 +1,3 @@
-// page where the user manages their vibechecks (models):
-// * list all created vibechecks
-// * create, edit and preview a vibecheck
-// * save a vibecheck to / load a vibecheck from a json file
-// the list of vibechecks is stored in localStorage
-
 import {
     ChoiceQuestion,
     Question,
@@ -43,9 +37,11 @@ function renderMain(): HTMLElement {
 function renderModals() {
     document.querySelector('.modal-root')?.remove();
     if (!previewState && !questionPicker) return;
+
     const modalRoot = el('div', { class: 'modal-root' });
     if (previewState) modalRoot.append(renderPreviewModal());
-    if (questionPicker) modalRoot.append(renderQuestionPickerModal());
+    else if (questionPicker) modalRoot.append(renderQuestionPickerModal());
+
     document.body.append(modalRoot);
 }
 
@@ -54,6 +50,7 @@ function goToList() {
     editingId = null;
     previewState = null;
     questionPicker = null;
+    history.replaceState(null, '', window.location.pathname);
     render();
 }
 
@@ -62,6 +59,7 @@ function startEditing(id: string) {
     view = 'edit';
     previewState = null;
     questionPicker = null;
+    history.replaceState(null, '', '?id=' + id);
     render();
 }
 
@@ -86,7 +84,6 @@ function previewNav(delta: number) {
     renderModals();
 }
 
-// italian label shown in the ui for each question kind
 function kindLabel(kind: Question['kind']): string {
     switch (kind) {
         case 'dimension': return 'dimensione';
@@ -556,4 +553,12 @@ function renderKindSquare(kind: Question['kind']): HTMLElement {
     return square;
 }
 
-render();
+const params = new URLSearchParams(window.location.search);
+const requestedId = params.get('id');
+if (params.has('new')) {
+    createNew();
+} else if (requestedId && models.some((model) => model.id === requestedId)) {
+    startEditing(requestedId);
+} else {
+    render();
+}
