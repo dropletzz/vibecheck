@@ -4,7 +4,7 @@ import * as https from 'https';
 import * as http from 'http';
 import { WebSocketServer } from 'ws';
 import { Store } from './store';
-import { makeId } from './common';
+import { ClientMessage, ServerMessage, makeId } from './common';
 
 const SERVER_PORT = process.env.VIBECHECK_SERVER_PORT || 4747;
 const PUBLIC_FOLDER = process.env.VIBECHECK_PUBLIC_FOLDER || 'build/public';
@@ -119,14 +119,15 @@ httpServer.listen(SERVER_PORT, () => {
 const wsServer = new WebSocketServer({ server: httpServer });
 console.log('Server ws in ascolto sulla porta ' + SERVER_PORT);
 
-function send(ws: any, payload: any) {
+function send(ws: any, payload: ServerMessage) {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
 }
 
 function sendPresenterState(sessionId: string) {
     const session = store.getSession(sessionId);
     if (session && session.presenterWs) {
-        send(session.presenterWs, { type: 'state', state: store.getPresenterState(sessionId) });
+        const state = store.getPresenterState(sessionId);
+        if (state) send(session.presenterWs, { type: 'state', state });
     }
 }
 
@@ -134,7 +135,8 @@ function broadcastParticipants(sessionId: string) {
     const session = store.getSession(sessionId);
     if (!session) return;
     for (const [userId, ws] of session.participants) {
-        send(ws, { type: 'participant-state', state: store.getParticipantState(sessionId, userId) });
+        const state = store.getParticipantState(sessionId, userId);
+        if (state) send(ws, { type: 'participant-state', state });
     }
 }
 
@@ -157,9 +159,9 @@ wsServer.on('connection', (ws, req) => {
         store.setPresenter(sessionId, ws);
         ws.on('message', (data) => {
             try {
-                const message = JSON.parse(String(data));
+                const message = JSON.parse(String(data)) as ClientMessage;
                 if (message.type === 'set-section') {
-                    store.setSection(sessionId, Number(message.index));
+                    store.setSection(sessionId, message.index);
                 } else if (message.type === 'close-section') {
                     store.closeSection(sessionId);
                 } else if (message.type === 'terminate') {
@@ -185,10 +187,11 @@ wsServer.on('connection', (ws, req) => {
         store.addParticipant(sessionId, userId, ws);
         ws.on('message', (data) => {
             try {
-                const message = JSON.parse(String(data));
+                const message = JSON.parse(String(data)) as ClientMessage;
                 if (message.type === 'submit') {
                     store.submitAnswers(sessionId, userId, message.answers || {});
-                    send(ws, { type: 'participant-state', state: store.getParticipantState(sessionId, userId) });
+                    const state = store.getParticipantState(sessionId, userId);
+                    if (state) send(ws, { type: 'participant-state', state });
                     sendPresenterState(sessionId);
                 }
             } catch {}

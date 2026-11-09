@@ -1,6 +1,7 @@
 // participant page: answer the current section
 
 import { el, renderQuestion } from '../common';
+import { ClientMessage, ParticipantState, ServerMessage } from '../../common';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
@@ -8,13 +9,13 @@ const sessionId = params.get('id') || '';
 const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const socket = new WebSocket(`${wsProtocol}://${window.location.host}/?session=${encodeURIComponent(sessionId)}&role=participant`);
 
-let state: any = null;
+let state: ParticipantState | null = null;
 let terminated = false;
 let questionBoxes: HTMLElement[] = [];
 
 socket.addEventListener('message', (event) => {
     try {
-        const message = JSON.parse(event.data);
+        const message = JSON.parse(event.data) as ServerMessage;
         if (message.type === 'participant-state') {
             state = message.state;
             render();
@@ -54,7 +55,7 @@ function renderParticipant(): HTMLElement {
     } else {
         const section = state.section;
         if (section?.title) children.push(el('h2', {}, section.title));
-        questionBoxes = (section?.questions || []).map((question: any) => renderQuestion(question));
+        questionBoxes = (section?.questions || []).map((question) => renderQuestion(question));
         children.push(el('div', {}, ...questionBoxes));
         children.push(el('button', { class: 'big', onclick: submit }, 'invia'));
     }
@@ -67,7 +68,7 @@ function submit() {
     if (!section) return;
     const answers: Record<string, any> = {};
 
-    section.questions.forEach((question: any, index: number) => {
+    section.questions.forEach((question, index) => {
         const box = questionBoxes[index];
         if (!box) return;
 
@@ -84,5 +85,6 @@ function submit() {
         }
     });
 
-    socket.send(JSON.stringify({ type: 'submit', answers }));
+    const message: ClientMessage = { type: 'submit', answers };
+    socket.send(JSON.stringify(message));
 }

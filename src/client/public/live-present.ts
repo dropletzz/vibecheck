@@ -1,6 +1,7 @@
 // presenter page: drives the live session
 
 import { el, renderQuestion } from '../common';
+import { ClientMessage, Question, QuestionResult, PresenterState, ServerMessage } from '../../common';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
@@ -9,12 +10,12 @@ const nonce = localStorage.getItem('vibecheck.nonce.' + sessionId) || '';
 const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const socket = new WebSocket(`${wsProtocol}://${window.location.host}/?session=${encodeURIComponent(sessionId)}&role=presenter&nonce=${encodeURIComponent(nonce)}`);
 
-let state: any = null;
+let state: PresenterState | null = null;
 let terminated = false;
 
 socket.addEventListener('message', (event) => {
     try {
-        const message = JSON.parse(event.data);
+        const message = JSON.parse(event.data) as ServerMessage;
         if (message.type === 'state') {
             state = message.state;
             render();
@@ -57,7 +58,7 @@ function renderPresenter(): HTMLElement {
     if (section?.title) children.push(el('h2', {}, section.title));
 
     if (state.phase === 'answering') {
-        children.push(el('div', {}, ...(section?.questions || []).map((question: any) => renderQuestion(question))));
+        children.push(el('div', {}, ...(section?.questions || []).map((question) => renderQuestion(question))));
         children.push(el('p', {}, state.answerCount + ' risposte'));
         children.push(el('button', { class: 'big', onclick: () => send({ type: 'close-section' }) }, 'chiudi le risposte'));
     } else {
@@ -72,7 +73,7 @@ function renderPresenter(): HTMLElement {
     return el('main', {}, ...children);
 }
 
-function renderResults(results: any[], questions: any[]): HTMLElement[] {
+function renderResults(results: QuestionResult[], questions: Question[]): HTMLElement[] {
     return results.map((result, index) => {
         const question = questions[index];
         const card = el('div', { class: 'card' });
@@ -88,7 +89,7 @@ function renderResults(results: any[], questions: any[]): HTMLElement[] {
             for (const [choice, count] of entries) {
                 card.append(el('p', {}, choice + ': ' + count));
             }
-        } else {
+        } else if (result.kind === 'text') {
             if (result.answers.length === 0) {
                 card.append(el('p', { class: 'muted' }, 'nessuna risposta'));
             }
@@ -100,6 +101,6 @@ function renderResults(results: any[], questions: any[]): HTMLElement[] {
     });
 }
 
-function send(payload: any) {
+function send(payload: ClientMessage) {
     socket.send(JSON.stringify(payload));
 }

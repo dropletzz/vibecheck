@@ -1,28 +1,13 @@
 // keeps the whole server state in memory and exposes helpers to read/write it
 
-import { VibecheckModel, makeId } from './common';
-
-export type Answer = number | string | string[];
-
-export interface SliderResult { kind: 'dimension' | 'opposition'; average: number; variance: number; }
-export interface ChoiceResult { kind: 'choice'; counts: Record<string, number>; }
-export interface TextResult { kind: 'text'; answers: string[]; }
-export type QuestionResult = SliderResult | ChoiceResult | TextResult;
-
-export interface PresenterState {
-    sectionIndex: number;
-    totalSections: number;
-    phase: 'answering' | 'results';
-    section: any;
-    answerCount: number;
-    results: QuestionResult[] | null;
-}
-
-export interface ParticipantState {
-    phase: 'answering' | 'results';
-    section: any;
-    submitted: boolean;
-}
+import {
+    Answer,
+    ParticipantState,
+    PresenterState,
+    QuestionResult,
+    VibecheckModel,
+    makeId,
+} from './common';
 
 interface Session {
     id: string;

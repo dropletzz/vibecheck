@@ -27,14 +27,14 @@ export interface DimensionQuestion extends BaseQuestion {
     kind: 'dimension';
     minLabel: string;
     maxLabel: string;
-    defaultValue?: number;
+    defaultValue: number;
 }
 
 export interface OppositionQuestion extends BaseQuestion {
     kind: 'opposition';
     minLabel: string;
     maxLabel: string;
-    defaultValue?: number;
+    defaultValue: number;
 }
 
 export interface TextQuestion extends BaseQuestion {
@@ -73,3 +73,80 @@ export function makeQuestion(kind: Question['kind']): Question {
             return { id: makeId(), kind, title: '', multiple: false, choices: ['', ''] };
     }
 }
+
+
+// ---------- live session data ----------
+
+export type Answer = number | string | string[];
+
+export interface SliderResult {
+    kind: 'dimension' | 'opposition';
+    average: number;
+    variance: number;
+}
+
+export interface ChoiceResult {
+    kind: 'choice';
+    counts: Record<string, number>;
+}
+
+export interface TextResult {
+    kind: 'text';
+    answers: string[];
+}
+
+export type QuestionResult = SliderResult | ChoiceResult | TextResult;
+
+export interface PresenterState {
+    sectionIndex: number;
+    totalSections: number;
+    phase: 'answering' | 'results';
+    section: Section;
+    answerCount: number;
+    results: QuestionResult[] | null;
+}
+
+export interface ParticipantState {
+    phase: 'answering' | 'results';
+    section: Section | null;
+    submitted: boolean;
+}
+
+
+// ---------- websocket messages ----------
+
+export interface StateMessage {
+    type: 'state';
+    state: PresenterState;
+}
+
+export interface ParticipantStateMessage {
+    type: 'participant-state';
+    state: ParticipantState;
+}
+
+export interface TerminatedMessage {
+    type: 'terminated';
+}
+
+export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage;
+
+export interface SetSectionMessage {
+    type: 'set-section';
+    index: number;
+}
+
+export interface CloseSectionMessage {
+    type: 'close-section';
+}
+
+export interface TerminateMessage {
+    type: 'terminate';
+}
+
+export interface SubmitMessage {
+    type: 'submit';
+    answers: Record<string, Answer>;
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage;
