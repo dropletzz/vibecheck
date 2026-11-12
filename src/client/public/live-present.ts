@@ -134,7 +134,22 @@ function renderResults(results: QuestionResult[], questions: Question[]): HTMLEl
         if (question?.title) card.append(el('h2', {}, question.title));
 
         if (result.kind === 'dimension' || result.kind === 'opposition') {
-            card.append(el('p', {}, 'media: ' + result.average.toFixed(2) + ' — varianza: ' + result.variance.toFixed(2)));
+            const sliderQuestion = question && (question.kind === 'dimension' || question.kind === 'opposition') ? question : null;
+            card.append(
+                el('div', { class: 'slider-labels' },
+                    el('span', {}, sliderQuestion?.minLabel || 'min'),
+                    el('span', {}, sliderQuestion?.maxLabel || 'max'),
+                ),
+                el('input', {
+                    class: 'result-slider',
+                    type: 'range',
+                    min: result.kind === 'dimension' ? '0' : '-1',
+                    max: '1',
+                    step: '0.01',
+                    value: String(result.average),
+                    tabindex: '-1',
+                }),
+            );
         } else if (result.kind === 'choice') {
             const entries = Object.entries(result.counts);
             if (entries.length === 0) {
