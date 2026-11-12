@@ -1,12 +1,11 @@
 // code shared by the frontend pages
 
 import {
-    makeId,
     Question,
     DimensionQuestion,
     OppositionQuestion,
-    Section,
-    VibecheckModel
+    VibecheckModel,
+    MAX_MULTIPLE_ANSWERS
 } from '../common';
 
 // tiny helper to build dom elements
@@ -85,7 +84,7 @@ export function loadModels(): VibecheckModel[] {
         const models: VibecheckModel[] = [];
         for (const model of parsed) {
             try {
-                models.push(normalizeVibecheck(model));
+                models.push(validateVibecheck(model));
             } catch {
                 // skip invalid entries
             }
@@ -106,71 +105,57 @@ export function saveModels(models: VibecheckModel[]): boolean {
     }
 }
 
-// ---------- import / normalization ----------
+// ---------- import / validation ----------
 
-// makes a VibecheckModel out of raw json data (from a file or from localStorage)
-// legacy models without sections get their questions wrapped in a single section
-export function normalizeVibecheck(raw: any): VibecheckModel {
-    if (!raw || typeof raw !== 'object' || typeof raw.name !== 'string') {
-        throw new Error('invalid vibecheck');
-    }
-    let sections: any[];
-    if (Array.isArray(raw.sections)) {
-        sections = raw.sections;
-    } else if (Array.isArray(raw.questions)) {
-        sections = [{ id: makeId(), title: '', questions: raw.questions }];
-    } else {
-        sections = [];
-    }
-    return {
-        id: typeof raw.id === 'string' ? raw.id : makeId(),
-        name: raw.name,
-        sections: sections.map(normalizeSection),
-    };
+// validates a raw VibecheckModel (from a file or from localStorage) and returns it
+export function validateVibecheck(raw: any): VibecheckModel {
+    if (!raw || typeof raw !== 'object') throw new Error('invalid vibecheck');
+    if (typeof raw.id !== 'string') throw new Error('invalid vibecheck.id');
+    if (typeof raw.name !== 'string') throw new Error('invalid vibecheck.name');
+    if (!Array.isArray(raw.sections)) throw new Error('invalid vibecheck.sections');
+    for (const section of raw.sections) validateSection(section);
+    return raw as VibecheckModel;
 }
 
-export function normalizeSection(raw: any): Section {
+function validateSection(raw: any): void {
     if (!raw || typeof raw !== 'object') throw new Error('invalid section');
-    return {
-        id: typeof raw.id === 'string' ? raw.id : makeId(),
-        title: typeof raw.title === 'string' ? raw.title : '',
-        questions: Array.isArray(raw.questions) ? raw.questions.map(normalizeQuestion) : [],
-    };
+    if (typeof raw.id !== 'string') throw new Error('invalid section.id');
+    if (typeof raw.title !== 'string') throw new Error('invalid section.title');
+    if (!Array.isArray(raw.questions)) throw new Error('invalid section.questions');
+    for (const question of raw.questions) validateQuestion(question);
 }
 
-export function normalizeQuestion(raw: any): Question {
+function validateQuestion(raw: any): void {
     if (!raw || typeof raw !== 'object') throw new Error('invalid question');
-    const base = {
-        id: typeof raw.id === 'string' ? raw.id : makeId(),
-        title: typeof raw.title === 'string' ? raw.title : '',
-    };
+    if (typeof raw.id !== 'string') throw new Error('invalid question.id');
+    if (typeof raw.title !== 'string') throw new Error('invalid question.title');
+
     switch (raw.kind) {
         case 'dimension':
         case 'opposition':
-            return {
-                ...base,
-                kind: raw.kind,
-                minLabel: typeof raw.minLabel === 'string' ? raw.minLabel : '',
-                maxLabel: typeof raw.maxLabel === 'string' ? raw.maxLabel : '',
-                defaultValue: typeof raw.defaultValue === 'number' ? raw.defaultValue : 0,
-            };
-        case 'text': {
-            const maxLength = Number(raw.maxLength);
-            const clamped = Number.isFinite(maxLength)
-                ? Math.min(1000, Math.max(1, Math.round(maxLength)))
-                : 200;
-            return { ...base, kind: raw.kind, maxLength: clamped, multipleAnswers: raw.multipleAnswers === true };
-        }
+            if (typeof raw.minLabel !== 'string') throw new Error('invalid question.minLabel');
+            if (typeof raw.maxLabel !== 'string') throw new Error('invalid question.maxLabel');
+            if (typeof raw.defaultValue !== 'number' || !Number.isFinite(raw.defaultValue)) throw new Error('invalid question.defaultValue');
+            break;
+        case 'text':
+            if (typeof raw.maxLength !== 'number' || !Number.isFinite(raw.maxLength) || raw.maxLength < 1 || raw.maxLength > 1000) {
+                throw new Error('invalid question.maxLength');
+            }
+            if (typeof raw.multipleAnswers !== 'boolean') throw new Error('invalid question.multipleAnswers');
+            if (typeof raw.maxAnswers !== 'number' || !Number.isFinite(raw.maxAnswers) || raw.maxAnswers < 2 || raw.maxAnswers > MAX_MULTIPLE_ANSWERS) {
+                throw new Error('invalid question.maxAnswers');
+            }
+            break;
         case 'choice':
-            return {
-                ...base,
-                kind: raw.kind,
-                multipleChoices: raw.multipleChoices === true,
-                choices: Array.isArray(raw.choices)
-                    ? raw.choices.filter((choice: any) => typeof choice === 'string')
-                    : [],
-            };
+            if (typeof raw.multipleChoices !== 'boolean') throw new Error('invalid question.multipleChoices');
+            if (typeof raw.maxAnswers !== 'number' || !Number.isFinite(raw.maxAnswers) || raw.maxAnswers < 2 || raw.maxAnswers > MAX_MULTIPLE_ANSWERS) {
+                throw new Error('invalid question.maxAnswers');
+            }
+            if (!Array.isArray(raw.choices) || !raw.choices.every((choice: any) => typeof choice === 'string')) {
+                throw new Error('invalid question.choices');
+            }
+            break;
         default:
-            throw new Error('invalid question kind');
+            throw new Error('invalid question.kind');
     }
 }

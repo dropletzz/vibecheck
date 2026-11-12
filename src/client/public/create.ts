@@ -1,5 +1,6 @@
 import {
     ChoiceQuestion,
+    MAX_MULTIPLE_ANSWERS,
     Question,
     Section,
     TextQuestion,
@@ -9,7 +10,7 @@ import {
     makeSection,
     makeVibecheck,
 } from '../../common';
-import { el, loadModels, normalizeVibecheck, renderQuestion, saveModels } from '../common';
+import { el, loadModels, renderQuestion, saveModels, validateVibecheck } from '../common';
 
 let models: VibecheckModel[] = loadModels();
 let view: 'list' | 'edit' = 'list';
@@ -107,7 +108,7 @@ function renderList(): HTMLElement {
             const reader = new FileReader();
             reader.onload = () => {
                 try {
-                    const vibecheck = normalizeVibecheck(JSON.parse(String(reader.result)));
+                    const vibecheck = validateVibecheck(JSON.parse(String(reader.result)));
                     vibecheck.id = makeId();
                     models.push(vibecheck);
                     saveModels(models);
@@ -414,20 +415,37 @@ function renderTextFields(question: TextQuestion): HTMLElement {
             saveModels(models);
         },
     });
+
+    const maxAnswersLabel = el('label', {}, 'risposte massime: ' + question.maxAnswers);
+    const maxAnswersRange = el('input', {
+        type: 'range',
+        min: '2',
+        max: String(MAX_MULTIPLE_ANSWERS),
+        value: String(question.maxAnswers),
+        oninput: () => {
+            question.maxAnswers = Number(maxAnswersRange.value);
+            maxAnswersLabel.textContent = 'risposte massime: ' + question.maxAnswers;
+            saveModels(models);
+        },
+    });
+    const maxAnswersBox = el('div', {}, maxAnswersLabel, maxAnswersRange);
+    maxAnswersBox.style.display = question.multipleAnswers ? 'block' : 'none';
+
+    const multipleCheckbox = el('input', {
+        type: 'checkbox',
+        checked: question.multipleAnswers || null,
+        onchange: (event: Event) => {
+            question.multipleAnswers = (event.target as HTMLInputElement).checked;
+            maxAnswersBox.style.display = question.multipleAnswers ? 'block' : 'none';
+            saveModels(models);
+        },
+    });
+
     return el('div', {},
         lengthLabel,
         range,
-        el('label', { class: 'check-row' },
-            el('input', {
-                type: 'checkbox',
-                checked: question.multipleAnswers || null,
-                onchange: (event: Event) => {
-                    question.multipleAnswers = (event.target as HTMLInputElement).checked;
-                    saveModels(models);
-                },
-            }),
-            el('span', {}, 'più risposte per persona'),
-        ),
+        el('label', { class: 'check-row' }, multipleCheckbox, el('span', {}, 'più risposte per persona')),
+        maxAnswersBox,
     );
 }
 
@@ -459,6 +477,31 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
         ));
     });
 
+    const maxAnswersLabel = el('label', {}, 'risposte massime: ' + question.maxAnswers);
+    const maxAnswersRange = el('input', {
+        type: 'range',
+        min: '2',
+        max: String(MAX_MULTIPLE_ANSWERS),
+        value: String(question.maxAnswers),
+        oninput: () => {
+            question.maxAnswers = Number(maxAnswersRange.value);
+            maxAnswersLabel.textContent = 'risposte massime: ' + question.maxAnswers;
+            saveModels(models);
+        },
+    });
+    const maxAnswersBox = el('div', {}, maxAnswersLabel, maxAnswersRange);
+    maxAnswersBox.style.display = question.multipleChoices ? 'block' : 'none';
+
+    const multipleCheckbox = el('input', {
+        type: 'checkbox',
+        checked: question.multipleChoices || null,
+        onchange: (event: Event) => {
+            question.multipleChoices = (event.target as HTMLInputElement).checked;
+            maxAnswersBox.style.display = question.multipleChoices ? 'block' : 'none';
+            saveModels(models);
+        },
+    });
+
     return el('div', {},
         choicesBox,
         el('button', { class: 'small', onclick: () => {
@@ -466,17 +509,8 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
             saveModels(models);
             render(true);
         } }, '+ aggiungi opzione'),
-        el('label', { class: 'check-row' },
-            el('input', {
-                type: 'checkbox',
-                checked: question.multipleChoices || null,
-                onchange: (event: Event) => {
-                    question.multipleChoices = (event.target as HTMLInputElement).checked;
-                    saveModels(models);
-                },
-            }),
-            el('span', {}, 'consenti scelta multipla'),
-        ),
+        el('label', { class: 'check-row' }, multipleCheckbox, el('span', {}, 'consenti scelta multipla')),
+        maxAnswersBox,
     );
 }
 

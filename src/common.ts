@@ -41,11 +41,13 @@ export interface TextQuestion extends BaseQuestion {
     kind: 'text';
     maxLength: number; // 1..1000
     multipleAnswers: boolean; // more than one answer per person
+    maxAnswers: number; // 2..42, used when multipleAnswers
 }
 
 export interface ChoiceQuestion extends BaseQuestion {
     kind: 'choice';
     multipleChoices: boolean;
+    maxAnswers: number; // 2..42, used when multipleChoices
     choices: string[];
 }
 
@@ -68,9 +70,9 @@ export function makeQuestion(kind: Question['kind']): Question {
         case 'opposition':
             return { id: makeId(), kind, title: '', minLabel: 'no', maxLabel: 'yes', defaultValue: 0 };
         case 'text':
-            return { id: makeId(), kind, title: '', maxLength: 200, multipleAnswers: false };
+            return { id: makeId(), kind, title: '', maxLength: 200, multipleAnswers: false, maxAnswers: 5 };
         case 'choice':
-            return { id: makeId(), kind, title: '', multipleChoices: false, choices: ['', ''] };
+            return { id: makeId(), kind, title: '', multipleChoices: false, maxAnswers: 5, choices: ['', ''] };
     }
 }
 
@@ -78,6 +80,8 @@ export function makeQuestion(kind: Question['kind']): Question {
 // ---------- live session data ----------
 
 export type Answer = number | string | string[];
+
+export const MAX_MULTIPLE_ANSWERS = 42;
 
 export interface SliderResult {
     kind: 'dimension' | 'opposition';

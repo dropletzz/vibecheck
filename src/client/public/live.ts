@@ -157,6 +157,7 @@ function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
     const answersBox = el('div', {});
     const addButton = el('button', { class: 'small', disabled: true }, 'aggiungi risposta');
     let currentInput: HTMLInputElement | null = null;
+    let inputCount = 0;
 
     const addInput = () => {
         const input = el('input', {
@@ -171,7 +172,12 @@ function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
         });
         answersBox.append(input);
         currentInput = input;
-        addButton.disabled = true;
+        inputCount++;
+        if (inputCount >= question.maxAnswers) {
+            addButton.style.display = 'none';
+        } else {
+            addButton.disabled = true;
+        }
     };
 
     addButton.addEventListener('click', addInput);
@@ -201,21 +207,24 @@ function submit() {
         } else if (question.kind === 'text') {
             if (question.multipleAnswers) {
                 const inputs = Array.from(box.querySelectorAll('input[type="text"]')) as HTMLInputElement[];
-                const values = inputs.map((input) => input.value.trim()).filter((value) => value.length > 0);
+                const values = Array.from(new Set(
+                    inputs.map((input) => input.value.trim()).filter((value) => value.length > 0),
+                ));
                 if (values.length > 0) {
                     answers[question.id] = values;
                     myAnswers[question.id] = values;
                 }
             } else {
                 const textarea = box.querySelector('textarea') as HTMLTextAreaElement;
-                if (textarea && textarea.value) {
-                    answers[question.id] = textarea.value;
-                    myAnswers[question.id] = [textarea.value];
+                const value = textarea ? textarea.value.trim() : '';
+                if (value.length > 0) {
+                    answers[question.id] = value;
+                    myAnswers[question.id] = [value];
                 }
             }
         } else {
             const checked = Array.from(box.querySelectorAll('input:checked')) as HTMLInputElement[];
-            const values = checked.map((input) => input.value);
+            const values = Array.from(new Set(checked.map((input) => input.value)));
             if (question.multipleChoices) {
                 answers[question.id] = values;
                 myAnswers[question.id] = values;
@@ -225,6 +234,16 @@ function submit() {
             }
         }
     });
+
+    for (const question of section.questions) {
+        const value = answers[question.id];
+        if (!Array.isArray(value)) continue;
+        if (question.kind !== 'text' && question.kind !== 'choice') continue;
+        if (value.length > question.maxAnswers) {
+            alert('troppe risposte: massimo ' + question.maxAnswers + ' per questa domanda');
+            return;
+        }
+    }
 
     const message: ClientMessage = { type: 'submit', answers };
     socket.send(JSON.stringify(message));

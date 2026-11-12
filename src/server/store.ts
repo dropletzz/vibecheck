@@ -170,8 +170,17 @@ export class Store {
     submitAnswers(id: string, userId: string, answers: Record<string, Answer>) {
         const session = this.sessions.get(id);
         if (!session || this.phase(id) !== 'answering') return;
+        if (this.isSubmitted(id, userId)) return;
         const section = session.vibecheck.sections[session.sectionIndex];
         if (!section) return;
+
+        // reject the whole submission if any multiple answer exceeds its question limit
+        for (const question of section.questions) {
+            const answer = answers[question.id];
+            if (!Array.isArray(answer)) continue;
+            if (question.kind !== 'text' && question.kind !== 'choice') continue;
+            if (answer.length > question.maxAnswers) return;
+        }
 
         let sectionAnswers = session.answersBySection.get(session.sectionIndex);
         if (!sectionAnswers) {
@@ -187,7 +196,7 @@ export class Store {
                 list = [];
                 sectionAnswers.set(question.id, list);
             }
-            if (Array.isArray(answer)) list.push(...answer);
+            if (Array.isArray(answer)) list.push(...Array.from(new Set(answer)));
             else list.push(answer);
         }
 
