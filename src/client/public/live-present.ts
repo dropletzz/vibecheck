@@ -1,5 +1,3 @@
-// presenter page: drives the live session
-
 import { el, renderQuestion } from '../common';
 import { ClientMessage, Question, QuestionResult, PresenterState, ServerMessage } from '../../common';
 

@@ -66,7 +66,7 @@ export function renderQuestion(question: Question): HTMLElement {
     } else {
         box.append(el('div', {},
             ...question.choices.map((choice) => el('label', { class: 'check-row' },
-                el('input', { type: question.multiple ? 'checkbox' : 'radio', name: question.id, value: choice }),
+                el('input', { type: question.multipleChoices ? 'checkbox' : 'radio', name: question.id, value: choice }),
                 el('span', {}, choice || 'opzione vuota'),
             )),
         ));
@@ -159,13 +159,13 @@ export function normalizeQuestion(raw: any): Question {
             const clamped = Number.isFinite(maxLength)
                 ? Math.min(1000, Math.max(1, Math.round(maxLength)))
                 : 200;
-            return { ...base, kind: raw.kind, maxLength: clamped, multiple: raw.multiple === true };
+            return { ...base, kind: raw.kind, maxLength: clamped, multipleAnswers: raw.multipleAnswers === true };
         }
         case 'choice':
             return {
                 ...base,
                 kind: raw.kind,
-                multiple: raw.multiple === true,
+                multipleChoices: raw.multipleChoices === true,
                 choices: Array.isArray(raw.choices)
                     ? raw.choices.filter((choice: any) => typeof choice === 'string')
                     : [],

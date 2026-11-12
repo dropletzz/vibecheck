@@ -420,9 +420,9 @@ function renderTextFields(question: TextQuestion): HTMLElement {
         el('label', { class: 'check-row' },
             el('input', {
                 type: 'checkbox',
-                checked: question.multiple || null,
+                checked: question.multipleAnswers || null,
                 onchange: (event: Event) => {
-                    question.multiple = (event.target as HTMLInputElement).checked;
+                    question.multipleAnswers = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },
             }),
@@ -469,9 +469,9 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
         el('label', { class: 'check-row' },
             el('input', {
                 type: 'checkbox',
-                checked: question.multiple || null,
+                checked: question.multipleChoices || null,
                 onchange: (event: Event) => {
-                    question.multiple = (event.target as HTMLInputElement).checked;
+                    question.multipleChoices = (event.target as HTMLInputElement).checked;
                     saveModels(models);
                 },
             }),

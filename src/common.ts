@@ -40,12 +40,12 @@ export interface OppositionQuestion extends BaseQuestion {
 export interface TextQuestion extends BaseQuestion {
     kind: 'text';
     maxLength: number; // 1..1000
-    multiple: boolean; // more than one answer per person
+    multipleAnswers: boolean; // more than one answer per person
 }
 
 export interface ChoiceQuestion extends BaseQuestion {
     kind: 'choice';
-    multiple: boolean;
+    multipleChoices: boolean;
     choices: string[];
 }
 
@@ -68,9 +68,9 @@ export function makeQuestion(kind: Question['kind']): Question {
         case 'opposition':
             return { id: makeId(), kind, title: '', minLabel: 'no', maxLabel: 'yes', defaultValue: 0 };
         case 'text':
-            return { id: makeId(), kind, title: '', maxLength: 200, multiple: false };
+            return { id: makeId(), kind, title: '', maxLength: 200, multipleAnswers: false };
         case 'choice':
-            return { id: makeId(), kind, title: '', multiple: false, choices: ['', ''] };
+            return { id: makeId(), kind, title: '', multipleChoices: false, choices: ['', ''] };
     }
 }
 
