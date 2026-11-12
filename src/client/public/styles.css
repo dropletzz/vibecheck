@@ -168,6 +168,10 @@ button.big {
     padding: 12px 20px;
 }
 
+button.full {
+    width: 100%;
+}
+
 button:disabled {
     background: var(--border);
     color: var(--muted);
@@ -202,6 +206,12 @@ textarea:focus {
 
 input[type='text'].title {
     font-size: 24px;
+}
+
+input:disabled,
+textarea:disabled {
+    opacity: 0.8;
+    cursor: not-allowed;
 }
 
 input[type='range'] { width: 100%; display: block; margin: 0; }

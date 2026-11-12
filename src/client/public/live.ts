@@ -71,7 +71,12 @@ function renderParticipant(): HTMLElement {
     if (state.phase === 'results') {
         children.push(el('p', { class: 'empty' }, 'le risposte sono chiuse, attendi la prossima sezione'));
     } else if (state.submitted) {
-        children.push(...renderSubmitted());
+        const section = state.section;
+        if (section?.title) children.push(el('h2', {}, section.title));
+        children.push(el('div', {}, ...(section?.questions || []).map((question) =>
+            renderQuestionDisabled(question, myAnswers[question.id] || []),
+        )));
+        children.push(el('p', { class: 'empty' }, 'risposte inviate'));
     } else {
         const section = state.section;
         if (section?.title) children.push(el('h2', {}, section.title));
@@ -81,41 +86,59 @@ function renderParticipant(): HTMLElement {
                 : renderQuestion(question),
         );
         children.push(el('div', {}, ...questionBoxes));
-        children.push(el('button', { class: 'big', onclick: submit }, 'invia'));
+        children.push(el('button', { class: 'big full', onclick: submit }, 'invia'));
     }
 
     return el('main', {}, ...children);
 }
 
-function renderSubmitted(): HTMLElement[] {
-    const section = state.section;
-    if (!section) return [];
+function renderQuestionDisabled(question: Question, answers: any[]): HTMLElement {
+    const box = el('div', { class: 'question ' + question.kind });
+    if (question.title) box.append(el('h2', {}, question.title));
 
-    const nodes: HTMLElement[] = [];
-    if (section.title) nodes.push(el('h2', {}, section.title));
-
-    for (const question of section.questions) {
-        const card = el('div', { class: 'card' });
-        if (question.title) card.append(el('h2', {}, question.title));
-        appendReadonlyAnswers(card, question, myAnswers[question.id] || []);
-        nodes.push(card);
-    }
-    return nodes;
-}
-
-function appendReadonlyAnswers(card: HTMLElement, question: Question, answers: any[]) {
     if (question.kind === 'dimension' || question.kind === 'opposition') {
         const value = answers.length > 0 ? Number(answers[0]) : (question.defaultValue ?? 0);
-        card.append(el('p', {}, 'la tua risposta: ' + value.toFixed(2)));
-        return;
-    }
-
-    const strings = answers.filter((answer) => typeof answer === 'string');
-    if (strings.length === 0) {
-        card.append(el('p', { class: 'muted' }, 'nessuna risposta'));
+        box.append(
+            el('div', { class: 'slider-labels' },
+                el('span', {}, question.minLabel || 'min'),
+                el('span', {}, question.maxLabel || 'max'),
+            ),
+            el('input', {
+                type: 'range',
+                min: question.kind === 'dimension' ? '0' : '-1',
+                max: '1',
+                step: '0.01',
+                value: String(value),
+                disabled: true,
+            }),
+        );
+    } else if (question.kind === 'text') {
+        if (question.multipleAnswers) {
+            const values = answers.filter((answer) => typeof answer === 'string') as string[];
+            const list = values.length > 0 ? values : [''];
+            box.append(el('div', {},
+                ...list.map((value) => el('input', { type: 'text', value, disabled: true })),
+            ));
+        } else {
+            const value = (answers.find((answer) => typeof answer === 'string') as string) || '';
+            box.append(el('textarea', { rows: '2', maxlength: String(question.maxLength), disabled: true }, value));
+        }
     } else {
-        for (const string of strings) card.append(el('p', {}, '• ' + string));
+        const selected = answers.filter((answer) => typeof answer === 'string') as string[];
+        box.append(el('div', {},
+            ...question.choices.map((choice) => el('label', { class: 'check-row' },
+                el('input', {
+                    type: question.multipleChoices ? 'checkbox' : 'radio',
+                    name: question.id,
+                    value: choice,
+                    checked: selected.includes(choice) || null,
+                    disabled: true,
+                }),
+                el('span', {}, choice || 'opzione vuota'),
+            )),
+        ));
     }
+    return box;
 }
 
 function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
@@ -152,6 +175,7 @@ function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
 function submit() {
     const section = state.section;
     if (!section) return;
+    if (!confirm('vuoi inviare le tue risposte?')) return;
     const answers: Record<string, any> = {};
 
     section.questions.forEach((question, index) => {
