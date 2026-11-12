@@ -107,9 +107,11 @@ function renderPresenter(): HTMLElement {
         state.sectionIndex === 0
             ? el('div', {})
             : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex - 1 }) }, '← indietro'),
-        lastSection
-            ? el('button', { class: 'big danger', onclick: terminate }, 'termina')
-            : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'avanti →'),
+        state.phase === 'results'
+            ? (lastSection
+                ? el('button', { class: 'big danger', onclick: terminate }, 'termina')
+                : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'avanti →'))
+            : el('div', {}),
     ));
 
     return el('main', { class: 'presenter' }, ...children);

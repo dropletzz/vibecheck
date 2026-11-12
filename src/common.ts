@@ -111,6 +111,7 @@ export interface PresenterState {
 
 export interface ParticipantState {
     phase: 'answering' | 'results';
+    name: string;
     section: Section | null;
     submitted: boolean;
 }

@@ -14,7 +14,7 @@ interface Session {
     nonce: string;
     vibecheck: VibecheckModel;
     sectionIndex: number;
-    phase: 'answering' | 'results';
+    closedSections: Set<number>;
     presenterWs: any;
     participants: Map<string, any>;
     submittedBySection: Map<number, Set<string>>;
@@ -33,7 +33,7 @@ export class Store {
             nonce,
             vibecheck,
             sectionIndex: 0,
-            phase: 'answering',
+            closedSections: new Set(),
             presenterWs: null,
             participants: new Map(),
             submittedBySection: new Map(),
@@ -81,12 +81,17 @@ export class Store {
         if (!session) return;
         if (!Number.isFinite(index) || index < 0 || index >= session.vibecheck.sections.length) return;
         session.sectionIndex = index;
-        session.phase = 'answering';
     }
 
     closeSection(id: string) {
         const session = this.sessions.get(id);
-        if (session) session.phase = 'results';
+        if (session) session.closedSections.add(session.sectionIndex);
+    }
+
+    private phase(id: string): 'answering' | 'results' {
+        const session = this.sessions.get(id);
+        if (!session) return 'answering';
+        return session.closedSections.has(session.sectionIndex) ? 'results' : 'answering';
     }
 
     deleteSession(id: string) {
@@ -95,7 +100,7 @@ export class Store {
 
     submitAnswers(id: string, userId: string, answers: Record<string, Answer>) {
         const session = this.sessions.get(id);
-        if (!session || session.phase !== 'answering') return;
+        if (!session || this.phase(id) !== 'answering') return;
         const section = session.vibecheck.sections[session.sectionIndex];
         if (!section) return;
 
@@ -128,24 +133,27 @@ export class Store {
     getPresenterState(id: string): PresenterState | null {
         const session = this.sessions.get(id);
         if (!session) return null;
+        const phase = this.phase(id);
         return {
             sectionIndex: session.sectionIndex,
             totalSections: session.vibecheck.sections.length,
-            phase: session.phase,
+            phase,
             name: session.vibecheck.name,
             section: session.vibecheck.sections[session.sectionIndex],
             participantCount: session.participants.size,
             answerCount: this.answerCount(id),
-            results: session.phase === 'results' ? this.computeResults(id) : null,
+            results: phase === 'results' ? this.computeResults(id) : null,
         };
     }
 
     getParticipantState(id: string, userId: string): ParticipantState | null {
         const session = this.sessions.get(id);
         if (!session) return null;
+        const phase = this.phase(id);
         return {
-            phase: session.phase,
-            section: session.phase === 'answering' ? session.vibecheck.sections[session.sectionIndex] : null,
+            phase,
+            name: session.vibecheck.name,
+            section: phase === 'answering' ? session.vibecheck.sections[session.sectionIndex] : null,
             submitted: this.isSubmitted(id, userId),
         };
     }

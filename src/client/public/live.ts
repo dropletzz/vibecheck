@@ -66,7 +66,7 @@ function render() {
 }
 
 function renderParticipant(): HTMLElement {
-    const children: HTMLElement[] = [el('h1', {}, 'partecipa')];
+    const children: HTMLElement[] = [el('h1', {}, state.name || 'partecipa')];
 
     if (state.phase === 'results') {
         children.push(el('p', { class: 'empty' }, 'le risposte sono chiuse, attendi la prossima sezione'));
