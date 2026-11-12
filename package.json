@@ -7,7 +7,7 @@
     "build:client": "node build-client.js",
     "build:server": "tsc",
     "build": "npm run build:client && npm run build:server",
-    "start": "node build/server.js",
+    "start": "node build/server/index.js",
     "dev": "nodemon --watch src --ext ts,html,css --exec \"npm run build && npm start\""
   },
   "keywords": [],

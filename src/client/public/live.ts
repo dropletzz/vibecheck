@@ -28,6 +28,15 @@ function renderEnd(message: string): HTMLElement {
     );
 }
 
+function renderConnectionError(): HTMLElement {
+    return el('main', {},
+        el('p', { class: 'empty' }, 'sembra ci siano problemi di connessione'),
+        el('div', { class: 'home-actions' },
+            el('button', { class: 'big', onclick: () => window.location.reload() }, 'ricarica la pagina'),
+        ),
+    );
+}
+
 socket.addEventListener('message', (event) => {
     try {
         const message = JSON.parse(event.data) as ServerMessage;
@@ -48,8 +57,8 @@ socket.addEventListener('message', (event) => {
 });
 
 socket.addEventListener('close', () => {
-    if (!state && !terminated) {
-        document.body.replaceChildren(renderEnd('sessione non valida'));
+    if (!terminated) {
+        document.body.replaceChildren(renderConnectionError());
     }
 });
 

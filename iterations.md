@@ -69,3 +69,13 @@ detailed view has a max-height and scrolls internally.
 summary view shows chips with the answer text (ellipsed if longer than 20 characters) and the count of answers. detailed view shows a horizontal barplot with a bar for each answer.
 this graph's height will be proportional to the number of choices.
 
+# iteration 3 - refactoring and store recovery
+
+we're gonna refactor the backend and allow for the data of active live sessions to be recovered between server restarts.
+
+## iteration 3.1 - refactoring
+create folder src/server, src/server.ts becomes src/server/index.ts, move store.ts inside server folder.
+create classes WsServer and HTTPServer on the backend so that the src/server/index.ts stays lean and clean. it will create one instance of both, pass configurations to them and start them. the store is also instantiated in the index and passed to WsServer and HTTPServer if needed.
+
+## iteration 3.2 - making store ws free 
+do not store ws sockets in the Store class, the Store should know absolutely nothing about websockets. it should just store plain json data that can be stringified. once you did that, make the Store periodically save it's whole state to a file. on startup if the file exists load it in the store (before starting the HTTPServer and the WSServer)

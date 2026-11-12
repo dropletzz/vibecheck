@@ -1,5 +1,7 @@
 // keeps the whole server state in memory and exposes helpers to read/write it
+// the state is plain json data (no sockets) so it can be saved to disk
 
+import * as fs from 'fs';
 import {
     Answer,
     ParticipantState,
@@ -7,7 +9,7 @@ import {
     QuestionResult,
     VibecheckModel,
     makeId,
-} from './common';
+} from '../common';
 
 interface Session {
     id: string;
@@ -15,15 +17,88 @@ interface Session {
     vibecheck: VibecheckModel;
     sectionIndex: number;
     closedSections: Set<number>;
-    presenterWs: any;
-    participants: Map<string, any>;
+    participants: Set<string>;
     submittedBySection: Map<number, Set<string>>;
     answersBySection: Map<number, Map<string, Answer[]>>;
     createdAt: number;
 }
 
+const DEFAULT_SAVE_INTERVAL_MS = 5000;
+
 export class Store {
     private sessions = new Map<string, Session>();
+    private filePath: string;
+
+    constructor(filePath: string) {
+        this.filePath = filePath;
+    }
+
+    load() {
+        try {
+            const raw = fs.readFileSync(this.filePath, 'utf-8');
+            this.deserialize(JSON.parse(raw));
+        } catch {
+            // no saved state: start fresh
+        }
+    }
+
+    save() {
+        try {
+            fs.writeFileSync(this.filePath, JSON.stringify(this.serialize(), null, 2));
+        } catch {
+            // ignore write errors
+        }
+    }
+
+    startAutoSave(intervalMs: number = DEFAULT_SAVE_INTERVAL_MS) {
+        setInterval(() => this.save(), intervalMs);
+    }
+
+    private serialize(): any {
+        const sessions: Record<string, any> = {};
+        for (const [id, session] of this.sessions) {
+            sessions[id] = {
+                id: session.id,
+                nonce: session.nonce,
+                vibecheck: session.vibecheck,
+                sectionIndex: session.sectionIndex,
+                closedSections: Array.from(session.closedSections),
+                participants: Array.from(session.participants),
+                submittedBySection: Object.fromEntries(
+                    Array.from(session.submittedBySection.entries()).map(([key, value]) => [String(key), Array.from(value)]),
+                ),
+                answersBySection: Object.fromEntries(
+                    Array.from(session.answersBySection.entries()).map(([key, value]) => [String(key), Object.fromEntries(value)]),
+                ),
+                createdAt: session.createdAt,
+            };
+        }
+        return { sessions };
+    }
+
+    private deserialize(data: any) {
+        if (!data || typeof data !== 'object' || typeof data.sessions !== 'object') return;
+        const sessions = new Map<string, Session>();
+        for (const [id, raw] of Object.entries(data.sessions)) {
+            const session = raw as any;
+            sessions.set(id, {
+                id: session.id,
+                nonce: session.nonce,
+                vibecheck: session.vibecheck,
+                sectionIndex: session.sectionIndex ?? 0,
+                closedSections: new Set(session.closedSections || []),
+                participants: new Set(session.participants || []),
+                submittedBySection: new Map(
+                    Object.entries(session.submittedBySection || {}).map(([key, value]) => [Number(key), new Set(value as string[])]),
+                ),
+                answersBySection: new Map(
+                    Object.entries(session.answersBySection || {}).map(([key, value]) => [Number(key), new Map(Object.entries(value as Record<string, Answer[]>))]),
+                ),
+                createdAt: session.createdAt ?? Date.now(),
+            });
+        }
+        this.sessions = sessions;
+    }
 
     createSession(vibecheck: VibecheckModel): { id: string; nonce: string } {
         const id = makeId();
@@ -34,8 +109,7 @@ export class Store {
             vibecheck,
             sectionIndex: 0,
             closedSections: new Set(),
-            presenterWs: null,
-            participants: new Map(),
+            participants: new Set(),
             submittedBySection: new Map(),
             answersBySection: new Map(),
             createdAt: Date.now(),
@@ -56,24 +130,19 @@ export class Store {
         return !!session && session.nonce === nonce;
     }
 
-    setPresenter(id: string, ws: any) {
+    addParticipant(id: string, userId: string) {
         const session = this.sessions.get(id);
-        if (session) session.presenterWs = ws;
-    }
-
-    clearPresenter(id: string) {
-        const session = this.sessions.get(id);
-        if (session) session.presenterWs = null;
-    }
-
-    addParticipant(id: string, userId: string, ws: any) {
-        const session = this.sessions.get(id);
-        if (session) session.participants.set(userId, ws);
+        if (session) session.participants.add(userId);
     }
 
     removeParticipant(id: string, userId: string) {
         const session = this.sessions.get(id);
         if (session) session.participants.delete(userId);
+    }
+
+    getParticipantIds(id: string): string[] {
+        const session = this.sessions.get(id);
+        return session ? Array.from(session.participants) : [];
     }
 
     setSection(id: string, index: number) {

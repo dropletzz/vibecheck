@@ -32,8 +32,8 @@ socket.addEventListener('message', (event) => {
 });
 
 socket.addEventListener('close', () => {
-    if (!state && !terminated) {
-        document.body.replaceChildren(renderEnd('sessione non valida o non autorizzata'));
+    if (!terminated) {
+        document.body.replaceChildren(renderConnectionError());
     }
 });
 
@@ -50,6 +50,15 @@ function renderEnd(message: string): HTMLElement {
         el('p', { class: 'empty' }, message),
         el('div', { class: 'home-actions' },
             el('button', { class: 'big', onclick: goHome }, 'torna alla home'),
+        ),
+    );
+}
+
+function renderConnectionError(): HTMLElement {
+    return el('main', {},
+        el('p', { class: 'empty' }, 'sembra ci siano problemi di connessione'),
+        el('div', { class: 'home-actions' },
+            el('button', { class: 'big', onclick: () => window.location.reload() }, 'ricarica la pagina'),
         ),
     );
 }
