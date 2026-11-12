@@ -77,7 +77,7 @@ function renderPresenter(): HTMLElement {
 
     const children: HTMLElement[] = [
         el('h1', {}, state.name || 'vibecheck'),
-        el('div', { class: 'link-row' }, linkInput, el('button', { class: 'small', onclick: copyLink }, 'copia')),
+        el('div', { class: 'link-row' }, linkInput, el('button', { onclick: copyLink }, 'copia')),
     ];
     if (section?.title) children.push(el('h2', {}, section.title));
     children.push(
@@ -85,14 +85,18 @@ function renderPresenter(): HTMLElement {
             el('p', { class: 'counter' }, state.participantCount + ' partecipanti'),
             el('p', { class: 'counter' }, state.answerCount + ' risposte'),
         ),
-        el('button', { onclick: () => { showQuestions = true; render(); } }, 'mostra domande'),
-        el('div', { class: 'vspace' }),
     );
 
     if (state.phase === 'results') {
         children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [])));
     } else {
-        children.push(el('button', { onclick: () => send({ type: 'close-section' }) }, 'chiudi le risposte'));
+        children.push(el('div', { class: 'flex-h' },
+            el('button', { onclick: () => { showQuestions = true; render(); } }, 'mostra domande'),
+            el('button', { class: 'danger', onclick: () => {
+                if (!confirm('vuoi chiudere le risposte?')) return;
+                send({ type: 'close-section' });
+            } }, 'chiudi le risposte'),
+        ));
     }
 
     children.push(el('div', { class: 'nav-row' },
@@ -117,7 +121,7 @@ function renderQuestionsModal(): HTMLElement {
         }
     });
 
-    const modal = el('div', { class: 'modal' },
+    const modal = el('div', { class: 'modal alt-bg' },
         el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: () => { showQuestions = false; render(); } }, '✕'),
     );
     if (section?.title) modal.append(el('h2', {}, section.title));
