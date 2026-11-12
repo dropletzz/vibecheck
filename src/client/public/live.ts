@@ -1,7 +1,7 @@
 // participant page: answer the current section
 
 import { el, renderQuestion } from '../common';
-import { ClientMessage, ParticipantState, Question, ServerMessage } from '../../common';
+import { ClientMessage, ParticipantState, Question, ServerMessage, TextQuestion } from '../../common';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
@@ -14,6 +14,19 @@ let terminated = false;
 let questionBoxes: HTMLElement[] = [];
 let myAnswers: Record<string, any[]> = {};
 let lastSectionId: string | null = null;
+
+function goHome() {
+    window.location.href = '/';
+}
+
+function renderEnd(message: string): HTMLElement {
+    return el('main', {},
+        el('p', { class: 'empty' }, message),
+        el('div', { class: 'home-actions' },
+            el('button', { class: 'big', onclick: goHome }, 'torna alla home'),
+        ),
+    );
+}
 
 socket.addEventListener('message', (event) => {
     try {
@@ -36,13 +49,13 @@ socket.addEventListener('message', (event) => {
 
 socket.addEventListener('close', () => {
     if (!state && !terminated) {
-        document.body.replaceChildren(el('main', {}, el('p', { class: 'empty' }, 'sessione non valida')));
+        document.body.replaceChildren(renderEnd('sessione non valida'));
     }
 });
 
 function render() {
     if (terminated) {
-        document.body.replaceChildren(el('main', {}, el('p', { class: 'empty' }, 'il vibecheck è terminato, grazie per aver partecipato')));
+        document.body.replaceChildren(renderEnd('il vibecheck è terminato, grazie per aver partecipato'));
         return;
     }
     if (!state) {
@@ -62,7 +75,11 @@ function renderParticipant(): HTMLElement {
     } else {
         const section = state.section;
         if (section?.title) children.push(el('h2', {}, section.title));
-        questionBoxes = (section?.questions || []).map((question) => renderQuestion(question));
+        questionBoxes = (section?.questions || []).map((question) =>
+            question.kind === 'text' && question.multipleAnswers
+                ? renderMultipleAnswersQuestion(question)
+                : renderQuestion(question),
+        );
         children.push(el('div', {}, ...questionBoxes));
         children.push(el('button', { class: 'big', onclick: submit }, 'invia'));
     }
@@ -81,12 +98,6 @@ function renderSubmitted(): HTMLElement[] {
         const card = el('div', { class: 'card' });
         if (question.title) card.append(el('h2', {}, question.title));
         appendReadonlyAnswers(card, question, myAnswers[question.id] || []);
-
-        if (question.kind === 'text' && question.multipleAnswers) {
-            const input = el('textarea', { rows: '2', placeholder: "aggiungi un'altra risposta" });
-            card.append(input);
-            card.append(el('button', { class: 'small', onclick: () => submitExtraText(question, input) }, 'invia'));
-        }
         nodes.push(card);
     }
     return nodes;
@@ -107,13 +118,35 @@ function appendReadonlyAnswers(card: HTMLElement, question: Question, answers: a
     }
 }
 
-function submitExtraText(question: Question, input: HTMLTextAreaElement) {
-    const text = input.value.trim();
-    if (!text) return;
-    myAnswers[question.id] = [...(myAnswers[question.id] || []), text];
-    const message: ClientMessage = { type: 'submit', answers: { [question.id]: text } };
-    socket.send(JSON.stringify(message));
-    render();
+function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
+    const box = el('div', { class: 'question ' + question.kind });
+    if (question.title) box.append(el('h2', {}, question.title));
+
+    const answersBox = el('div', {});
+    const addButton = el('button', { class: 'small', disabled: true }, 'aggiungi risposta');
+    let currentInput: HTMLInputElement | null = null;
+
+    const addInput = () => {
+        const input = el('input', {
+            type: 'text',
+            maxlength: String(question.maxLength),
+            placeholder: 'scrivi la risposta',
+        });
+        input.addEventListener('input', () => {
+            if (input === currentInput) {
+                addButton.disabled = input.value.length === 0;
+            }
+        });
+        answersBox.append(input);
+        currentInput = input;
+        addButton.disabled = true;
+    };
+
+    addButton.addEventListener('click', addInput);
+    addInput();
+
+    box.append(answersBox, addButton);
+    return box;
 }
 
 function submit() {
@@ -133,12 +166,17 @@ function submit() {
                 myAnswers[question.id] = [value];
             }
         } else if (question.kind === 'text') {
-            const textarea = box.querySelector('textarea') as HTMLTextAreaElement;
-            if (textarea && textarea.value) {
-                answers[question.id] = textarea.value;
-                if (question.multipleAnswers) {
-                    myAnswers[question.id] = [...(myAnswers[question.id] || []), textarea.value];
-                } else {
+            if (question.multipleAnswers) {
+                const inputs = Array.from(box.querySelectorAll('input[type="text"]')) as HTMLInputElement[];
+                const values = inputs.map((input) => input.value.trim()).filter((value) => value.length > 0);
+                if (values.length > 0) {
+                    answers[question.id] = values;
+                    myAnswers[question.id] = values;
+                }
+            } else {
+                const textarea = box.querySelector('textarea') as HTMLTextAreaElement;
+                if (textarea && textarea.value) {
+                    answers[question.id] = textarea.value;
                     myAnswers[question.id] = [textarea.value];
                 }
             }

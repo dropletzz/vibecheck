@@ -29,7 +29,7 @@ socket.addEventListener('message', (event) => {
 
 socket.addEventListener('close', () => {
     if (!state && !terminated) {
-        document.body.replaceChildren(el('main', {}, el('p', { class: 'empty' }, 'sessione non valida o non autorizzata')));
+        document.body.replaceChildren(renderEnd('sessione non valida o non autorizzata'));
     }
 });
 
@@ -37,9 +37,22 @@ function participantLink(): string {
     return `${window.location.origin}/live.html?id=${sessionId}`;
 }
 
+function goHome() {
+    window.location.href = '/';
+}
+
+function renderEnd(message: string): HTMLElement {
+    return el('main', {},
+        el('p', { class: 'empty' }, message),
+        el('div', { class: 'home-actions' },
+            el('button', { class: 'big', onclick: goHome }, 'torna alla home'),
+        ),
+    );
+}
+
 function render() {
     if (terminated) {
-        document.body.replaceChildren(el('main', {}, el('p', { class: 'empty' }, 'vibecheck terminato, puoi chiudere questa pagina')));
+        document.body.replaceChildren(renderEnd('vibecheck terminato, puoi chiudere questa pagina'));
         return;
     }
     if (!state) {
@@ -65,13 +78,16 @@ function renderPresenter(): HTMLElement {
     const children: HTMLElement[] = [
         el('h1', {}, state.name || 'vibecheck'),
         el('div', { class: 'link-row' }, linkInput, el('button', { class: 'small', onclick: copyLink }, 'copia')),
+    ];
+    if (section?.title) children.push(el('h2', {}, section.title));
+    children.push(
         el('div', { class: 'counters' },
             el('p', { class: 'counter' }, state.participantCount + ' partecipanti'),
             el('p', { class: 'counter' }, state.answerCount + ' risposte'),
         ),
         el('button', { onclick: () => { showQuestions = true; render(); } }, 'mostra domande'),
         el('div', { class: 'vspace' }),
-    ];
+    );
 
     if (state.phase === 'results') {
         children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [])));

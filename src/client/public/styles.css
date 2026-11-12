@@ -48,8 +48,8 @@ main {
     padding: 20px 16px 64px;
 }
 
-h1 { font-size: 1.5rem; margin: 0 0 4px; }
-h2 { font-size: 1.05rem; margin: 0; }
+h1 { font-size: 2rem; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 0 0 12px; }
 
 .muted { color: var(--muted); }
 .empty { color: var(--muted); text-align: center; padding: 32px 0; }
@@ -58,7 +58,7 @@ h2 { font-size: 1.05rem; margin: 0; }
 .flex-h { display: flex; justify-content: center; gap: 10px; }
 .flex-h > * { flex: 1; }
 
-.link-row { display: flex; align-items: center; gap: 8px; }
+.link-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
 .link-row input { flex: 1; }
 .counters { display: flex; gap: 16px; margin: 12px 0; }
 .counter { font-size: 1.1rem; margin: 0; }
@@ -166,6 +166,19 @@ button.big {
     --btn-depth: var(--btn-depth-big);
     font-size: 20px;
     padding: 12px 20px;
+}
+
+button:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+}
+button:disabled::before,
+button:disabled::after {
+    background: var(--border);
+}
+button:disabled:active {
+    transform: none;
 }
 
 input[type='text'],
@@ -388,7 +401,7 @@ label {
 
 @media (min-width: 720px) {
     main { padding: 32px 24px 64px; }
-    h1 { font-size: 1.8rem; }
+    h1 { font-size: 2.4rem; }
 }
 
 /* fonts */
