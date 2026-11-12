@@ -9,8 +9,9 @@ import {
     makeQuestion,
     makeSection,
     makeVibecheck,
+    validateVibecheck,
 } from '../../common';
-import { el, loadModels, renderQuestion, saveModels, validateVibecheck } from '../common';
+import { el, loadModels, renderQuestion, saveModels } from '../common';
 
 let models: VibecheckModel[] = loadModels();
 let view: 'list' | 'edit' = 'list';

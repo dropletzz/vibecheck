@@ -5,7 +5,7 @@ import {
     DimensionQuestion,
     OppositionQuestion,
     VibecheckModel,
-    MAX_MULTIPLE_ANSWERS
+    validateVibecheck
 } from '../common';
 
 // tiny helper to build dom elements
@@ -105,57 +105,3 @@ export function saveModels(models: VibecheckModel[]): boolean {
     }
 }
 
-// ---------- import / validation ----------
-
-// validates a raw VibecheckModel (from a file or from localStorage) and returns it
-export function validateVibecheck(raw: any): VibecheckModel {
-    if (!raw || typeof raw !== 'object') throw new Error('invalid vibecheck');
-    if (typeof raw.id !== 'string') throw new Error('invalid vibecheck.id');
-    if (typeof raw.name !== 'string') throw new Error('invalid vibecheck.name');
-    if (!Array.isArray(raw.sections)) throw new Error('invalid vibecheck.sections');
-    for (const section of raw.sections) validateSection(section);
-    return raw as VibecheckModel;
-}
-
-function validateSection(raw: any): void {
-    if (!raw || typeof raw !== 'object') throw new Error('invalid section');
-    if (typeof raw.id !== 'string') throw new Error('invalid section.id');
-    if (typeof raw.title !== 'string') throw new Error('invalid section.title');
-    if (!Array.isArray(raw.questions)) throw new Error('invalid section.questions');
-    for (const question of raw.questions) validateQuestion(question);
-}
-
-function validateQuestion(raw: any): void {
-    if (!raw || typeof raw !== 'object') throw new Error('invalid question');
-    if (typeof raw.id !== 'string') throw new Error('invalid question.id');
-    if (typeof raw.title !== 'string') throw new Error('invalid question.title');
-
-    switch (raw.kind) {
-        case 'dimension':
-        case 'opposition':
-            if (typeof raw.minLabel !== 'string') throw new Error('invalid question.minLabel');
-            if (typeof raw.maxLabel !== 'string') throw new Error('invalid question.maxLabel');
-            if (typeof raw.defaultValue !== 'number' || !Number.isFinite(raw.defaultValue)) throw new Error('invalid question.defaultValue');
-            break;
-        case 'text':
-            if (typeof raw.maxLength !== 'number' || !Number.isFinite(raw.maxLength) || raw.maxLength < 1 || raw.maxLength > 1000) {
-                throw new Error('invalid question.maxLength');
-            }
-            if (typeof raw.multipleAnswers !== 'boolean') throw new Error('invalid question.multipleAnswers');
-            if (typeof raw.maxAnswers !== 'number' || !Number.isFinite(raw.maxAnswers) || raw.maxAnswers < 2 || raw.maxAnswers > MAX_MULTIPLE_ANSWERS) {
-                throw new Error('invalid question.maxAnswers');
-            }
-            break;
-        case 'choice':
-            if (typeof raw.multipleChoices !== 'boolean') throw new Error('invalid question.multipleChoices');
-            if (typeof raw.maxAnswers !== 'number' || !Number.isFinite(raw.maxAnswers) || raw.maxAnswers < 2 || raw.maxAnswers > MAX_MULTIPLE_ANSWERS) {
-                throw new Error('invalid question.maxAnswers');
-            }
-            if (!Array.isArray(raw.choices) || !raw.choices.every((choice: any) => typeof choice === 'string')) {
-                throw new Error('invalid question.choices');
-            }
-            break;
-        default:
-            throw new Error('invalid question.kind');
-    }
-}

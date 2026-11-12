@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';
 import { Store } from './store';
-import { makeId } from '../common';
+import { makeId, validateVibecheck } from '../common';
 
 const MIME_TYPES: Record<string, string> = {
     '.html': 'text/html',
@@ -75,7 +75,7 @@ export class HTTPServer {
             req.on('data', (chunk) => { body += chunk; });
             req.on('end', () => {
                 try {
-                    const vibecheck = JSON.parse(body);
+                    const vibecheck = validateVibecheck(JSON.parse(body));
                     const { id, nonce } = this.store.createSession(vibecheck);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ id, nonce }));
