@@ -226,7 +226,7 @@ function renderEdit(): HTMLElement {
         sectionsBox.append(insertSectionButton(sectionIndex + 1));
     });
 
-    return el('main', {},
+    return el('main', { class: 'editor' },
         el('div', { class: 'row space-between' },
             el('button', { onclick: goToList }, '← indietro'),
             el('button', { onclick: () => startPreviewing(vibecheck.id) }, 'anteprima'),

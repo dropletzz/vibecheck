@@ -190,22 +190,36 @@ textarea {
     font: inherit;
     width: 100%;
     color: var(--text);
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--accent);
-    margin-bottom: 1px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
     padding: 8px 10px;
 }
 
 input[type='text']:focus,
 textarea:focus {
     outline: none;
-    border-bottom: 2px solid var(--accent-strong);
-    margin-bottom: 0px;
+    border-color: var(--accent-strong);
 }
 
 input[type='text'].title {
     font-size: 24px;
+}
+
+main.editor input[type='text'],
+main.editor textarea {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--accent);
+    border-radius: 0;
+    margin-bottom: 1px;
+}
+
+main.editor input[type='text']:focus,
+main.editor textarea:focus {
+    border: none;
+    border-bottom: 2px solid var(--accent-strong);
+    margin-bottom: 0px;
 }
 
 input:disabled,
