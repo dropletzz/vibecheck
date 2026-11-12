@@ -182,7 +182,7 @@ export class Store {
                     average = numbers.reduce((sum, n) => sum + n, 0) / numbers.length;
                     variance = numbers.reduce((sum, n) => sum + (n - average) ** 2, 0) / numbers.length;
                 }
-                results.push({ kind: question.kind, average, variance });
+                results.push({ kind: question.kind, average, variance, values: numbers });
             } else if (question.kind === 'choice') {
                 const counts: Record<string, number> = {};
                 for (const answer of answers) {

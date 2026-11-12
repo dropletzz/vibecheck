@@ -83,6 +83,7 @@ export interface SliderResult {
     kind: 'dimension' | 'opposition';
     average: number;
     variance: number;
+    values: number[];
 }
 
 export interface ChoiceResult {

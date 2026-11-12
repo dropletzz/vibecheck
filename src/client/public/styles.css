@@ -240,6 +240,54 @@ input[type='range'].result-slider {
     pointer-events: none;
 }
 
+.result-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.result-header h2 { margin: 0; }
+.result-header button { margin-left: auto; }
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.chip {
+    background: var(--accent);
+    border-radius: 4px;
+    padding: 4px 12px;
+}
+
+.text-results {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.answer-box {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+.answer-count {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+canvas.result-canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
 .question.text input[type='text'],
 textarea {
     margin-bottom: 6px;

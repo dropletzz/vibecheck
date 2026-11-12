@@ -50,4 +50,22 @@ the id for the 'session' is generated on the backend, the participants will visi
 in the backend create a Store class that keeps the state of the whole app in a big js object. and exposes methods to read and write it.
 users will be identified with ids generated on the backend and saved on the client via cookies.
 
+## iteration 2.1 - better answer visualization
+
+here we upgrade the way answers are presented in the presenter live view.
+each answer will have summary view and a detailed view (default is the summary view). for each question a small button in the top right corner allows to toggle between these two views.
+there will be graphs drawn using canvas.
+
+### dimensions and oppositions
+summary view is exacly as it is now. detailed view shows a  vertical bar plot with the answer's distribution counts. the number of bars is 7 (but make it easily configurable).
+this graph will have a fixed aspect ratio (4:3, but make it easily configurable).
+
+### text
+here we will group answers that are equal to each other and count them.
+summary view shows the 3 most common answers with counts. detailed view shows all the answers with counts, in decreasing order by count. each answer is shown inside a white box with rounded corners, the count is shown in the top right of that box. answers with count 1 don't show the count.
+detailed view has a max-height and scrolls internally.
+
+### choice
+summary view shows chips with the answer text (ellipsed if longer than 20 characters) and the count of answers. detailed view shows a horizontal barplot with a bar for each answer.
+this graph's height will be proportional to the number of choices.
 
