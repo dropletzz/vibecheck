@@ -132,7 +132,9 @@ export class Store {
             sectionIndex: session.sectionIndex,
             totalSections: session.vibecheck.sections.length,
             phase: session.phase,
+            name: session.vibecheck.name,
             section: session.vibecheck.sections[session.sectionIndex],
+            participantCount: session.participants.size,
             answerCount: this.answerCount(id),
             results: session.phase === 'results' ? this.computeResults(id) : null,
         };

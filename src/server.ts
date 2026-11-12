@@ -185,6 +185,7 @@ wsServer.on('connection', (ws, req) => {
         const cookies = parseCookies(req);
         const userId = cookies.userId || 'anon-' + makeId();
         store.addParticipant(sessionId, userId, ws);
+        sendPresenterState(sessionId);
         ws.on('message', (data) => {
             try {
                 const message = JSON.parse(String(data)) as ClientMessage;
@@ -196,7 +197,10 @@ wsServer.on('connection', (ws, req) => {
                 }
             } catch {}
         });
-        ws.on('close', () => store.removeParticipant(sessionId, userId));
+        ws.on('close', () => {
+            store.removeParticipant(sessionId, userId);
+            sendPresenterState(sessionId);
+        });
         send(ws, { type: 'participant-state', state: store.getParticipantState(sessionId, userId) });
     }
 });

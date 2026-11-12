@@ -12,6 +12,7 @@ const socket = new WebSocket(`${wsProtocol}://${window.location.host}/?session=$
 
 let state: PresenterState | null = null;
 let terminated = false;
+let showQuestions = false;
 
 socket.addEventListener('message', (event) => {
     try {
@@ -21,6 +22,7 @@ socket.addEventListener('message', (event) => {
             render();
         } else if (message.type === 'terminated') {
             terminated = true;
+            showQuestions = false;
             render();
             socket.close();
         }
@@ -33,6 +35,10 @@ socket.addEventListener('close', () => {
     }
 });
 
+function participantLink(): string {
+    return `${window.location.origin}/live.html?id=${sessionId}`;
+}
+
 function render() {
     if (terminated) {
         document.body.replaceChildren(el('main', {}, el('p', { class: 'empty' }, 'vibecheck terminato, puoi chiudere questa pagina')));
@@ -43,34 +49,68 @@ function render() {
         return;
     }
     document.body.replaceChildren(renderPresenter());
+    if (showQuestions) document.body.append(renderQuestionsModal());
 }
 
 function renderPresenter(): HTMLElement {
     const section = state.section;
-    const participantLink = `${window.location.origin}/live.html?id=${sessionId}`;
+    const lastSection = state.sectionIndex >= state.totalSections - 1;
+
+    const linkInput = el('input', {
+        class: 'link-input',
+        type: 'text',
+        readonly: true,
+        value: participantLink(),
+        onclick: (event) => (event.target as HTMLInputElement).select(),
+    });
 
     const children: HTMLElement[] = [
-        el('h1', {}, 'live'),
-        el('p', { class: 'muted' }, 'link per i partecipanti:'),
-        el('a', { href: participantLink }, participantLink),
+        el('h1', {}, state.name || 'vibecheck'),
+        el('div', { class: 'link-row' }, linkInput, el('button', { class: 'small', onclick: copyLink }, 'copia')),
+        el('div', { class: 'counters' },
+            el('p', { class: 'counter' }, state.participantCount + ' partecipanti'),
+            el('p', { class: 'counter' }, state.answerCount + ' risposte'),
+        ),
+        el('button', { onclick: () => { showQuestions = true; render(); } }, 'mostra domande'),
+        el('div', { class: 'vspace' }),
     ];
 
-    if (section?.title) children.push(el('h2', {}, section.title));
-
-    if (state.phase === 'answering') {
-        children.push(el('div', {}, ...(section?.questions || []).map((question) => renderQuestion(question))));
-        children.push(el('p', {}, state.answerCount + ' risposte'));
-        children.push(el('button', { class: 'big', onclick: () => send({ type: 'close-section' }) }, 'chiudi le risposte'));
-    } else {
+    if (state.phase === 'results') {
         children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [])));
-        if (state.sectionIndex < state.totalSections - 1) {
-            children.push(el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'sezione successiva'));
-        } else {
-            children.push(el('button', { class: 'big danger', onclick: () => send({ type: 'terminate' }) }, 'termina'));
-        }
+    } else {
+        children.push(el('button', { onclick: () => send({ type: 'close-section' }) }, 'chiudi le risposte'));
     }
 
-    return el('main', {}, ...children);
+    children.push(el('div', { class: 'nav-row' },
+        state.sectionIndex === 0
+            ? el('div', {})
+            : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex - 1 }) }, '← indietro'),
+        lastSection
+            ? el('button', { class: 'big danger', onclick: terminate }, 'termina')
+            : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'avanti →'),
+    ));
+
+    return el('main', { class: 'presenter' }, ...children);
+}
+
+function renderQuestionsModal(): HTMLElement {
+    const section = state?.section;
+    const overlay = el('div', { class: 'modal-overlay' });
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+            showQuestions = false;
+            render();
+        }
+    });
+
+    const modal = el('div', { class: 'modal' },
+        el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: () => { showQuestions = false; render(); } }, '✕'),
+    );
+    if (section?.title) modal.append(el('h2', {}, section.title));
+    modal.append(el('div', {}, ...(section?.questions || []).map((question) => renderQuestion(question))));
+
+    overlay.append(modal);
+    return overlay;
 }
 
 function renderResults(results: QuestionResult[], questions: Question[]): HTMLElement[] {
@@ -99,6 +139,36 @@ function renderResults(results: QuestionResult[], questions: Question[]): HTMLEl
         }
         return card;
     });
+}
+
+function copyLink() {
+    const link = participantLink();
+    const markCopied = () => {
+        const button = document.querySelector('.link-row button') as HTMLButtonElement | null;
+        if (button) {
+            button.textContent = 'copiato!';
+            setTimeout(() => { button.textContent = 'copia'; }, 1200);
+        }
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(link).then(markCopied, () => {});
+    } else {
+        const input = document.querySelector('.link-input') as HTMLInputElement | null;
+        if (input) {
+            input.focus();
+            input.select();
+            try {
+                document.execCommand('copy');
+                markCopied();
+            } catch {}
+        }
+    }
+}
+
+function terminate() {
+    if (!confirm('vuoi terminare il vibecheck?')) return;
+    send({ type: 'terminate' });
 }
 
 function send(payload: ClientMessage) {

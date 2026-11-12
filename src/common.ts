@@ -101,7 +101,9 @@ export interface PresenterState {
     sectionIndex: number;
     totalSections: number;
     phase: 'answering' | 'results';
+    name: string;
     section: Section;
+    participantCount: number;
     answerCount: number;
     results: QuestionResult[] | null;
 }

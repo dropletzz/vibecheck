@@ -58,6 +58,14 @@ h2 { font-size: 1.05rem; margin: 0; }
 .flex-h { display: flex; justify-content: center; gap: 10px; }
 .flex-h > * { flex: 1; }
 
+.link-row { display: flex; align-items: center; gap: 8px; }
+.link-row input { flex: 1; }
+.counters { display: flex; gap: 16px; margin: 12px 0; }
+.counter { font-size: 1.1rem; margin: 0; }
+.nav-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }
+main.presenter { display: flex; flex-direction: column; min-height: 100vh; }
+main.presenter .nav-row { margin-top: auto; padding-top: 24px; }
+
 .home {
     text-align: center;
     display: flex;
