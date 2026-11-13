@@ -106,6 +106,7 @@ button {
     border: none;
     margin-bottom: var(--btn-depth);
     margin-right: var(--btn-depth);
+    user-select: none;
 }
 button::before { /* bottom face */
     content: '';
