@@ -120,6 +120,12 @@ export interface ParticipantState {
     submitted: boolean;
 }
 
+export interface SummaryState {
+    vibecheck: VibecheckModel;
+    sections: { section: Section; results: QuestionResult[] }[];
+    answers: (Answer | null)[][];
+}
+
 
 // ---------- websocket messages ----------
 
@@ -137,7 +143,12 @@ export interface TerminatedMessage {
     type: 'terminated';
 }
 
-export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage;
+export interface SummaryMessage {
+    type: 'summary';
+    summary: SummaryState;
+}
+
+export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage;
 
 export interface SetSectionMessage {
     type: 'set-section';
@@ -157,7 +168,11 @@ export interface SubmitMessage {
     answers: Record<string, Answer>;
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage;
+export interface SummaryRequestMessage {
+    type: 'summary';
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage;
 
 
 // ---------- validation ----------

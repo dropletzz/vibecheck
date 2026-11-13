@@ -7,6 +7,7 @@ import {
     ParticipantState,
     PresenterState,
     QuestionResult,
+    SummaryState,
     VibecheckModel,
     makeId,
 } from '../common';
@@ -19,7 +20,8 @@ interface Session {
     closedSections: Set<number>;
     participants: Set<string>;
     submittedBySection: Map<number, Set<string>>;
-    answersBySection: Map<number, Map<string, Answer[]>>;
+    // section number -> questionId -> userId
+    answersBySection: Map<number, Map<string, Map<string, Answer>>>;
     createdAt: number;
 }
 
@@ -68,7 +70,15 @@ export class Store {
                     Array.from(session.submittedBySection.entries()).map(([key, value]) => [String(key), Array.from(value)]),
                 ),
                 answersBySection: Object.fromEntries(
-                    Array.from(session.answersBySection.entries()).map(([key, value]) => [String(key), Object.fromEntries(value)]),
+                    Array.from(session.answersBySection.entries()).map(([sectionIndex, questions]) => [
+                        String(sectionIndex),
+                        Object.fromEntries(
+                            Array.from(questions.entries()).map(([questionId, userAnswers]) => [
+                                questionId,
+                                Object.fromEntries(userAnswers),
+                            ]),
+                        ),
+                    ]),
                 ),
                 createdAt: session.createdAt,
             };
@@ -92,7 +102,15 @@ export class Store {
                     Object.entries(session.submittedBySection || {}).map(([key, value]) => [Number(key), new Set(value as string[])]),
                 ),
                 answersBySection: new Map(
-                    Object.entries(session.answersBySection || {}).map(([key, value]) => [Number(key), new Map(Object.entries(value as Record<string, Answer[]>))]),
+                    Object.entries(session.answersBySection || {}).map(([sectionIndex, questions]) => [
+                        Number(sectionIndex),
+                        new Map(
+                            Object.entries(questions as Record<string, Record<string, Answer>>).map(([questionId, userAnswers]) => [
+                                questionId,
+                                new Map(Object.entries(userAnswers)),
+                            ]),
+                        ),
+                    ]),
                 ),
                 createdAt: session.createdAt ?? Date.now(),
             });
@@ -191,13 +209,13 @@ export class Store {
         for (const question of section.questions) {
             const answer = answers[question.id];
             if (answer === undefined || answer === null) continue;
-            let list = sectionAnswers.get(question.id);
-            if (!list) {
-                list = [];
-                sectionAnswers.set(question.id, list);
+            const normalized = Array.isArray(answer) ? Array.from(new Set(answer)) : answer;
+            let questionAnswers = sectionAnswers.get(question.id);
+            if (!questionAnswers) {
+                questionAnswers = new Map();
+                sectionAnswers.set(question.id, questionAnswers);
             }
-            if (Array.isArray(answer)) list.push(...Array.from(new Set(answer)));
-            else list.push(answer);
+            questionAnswers.set(userId, normalized);
         }
 
         let submitters = session.submittedBySection.get(session.sectionIndex);
@@ -220,7 +238,7 @@ export class Store {
             section: session.vibecheck.sections[session.sectionIndex],
             participantCount: session.participants.size,
             answerCount: this.answerCount(id),
-            results: phase === 'results' ? this.computeResults(id) : null,
+            results: phase === 'results' ? this.computeResults(id, session.sectionIndex) : null,
         };
     }
 
@@ -233,6 +251,43 @@ export class Store {
             name: session.vibecheck.name,
             section: phase === 'answering' ? session.vibecheck.sections[session.sectionIndex] : null,
             submitted: this.isSubmitted(id, userId),
+        };
+    }
+
+    getSummary(id: string): SummaryState | null {
+        const session = this.sessions.get(id);
+        if (!session) return null;
+
+        const sections = session.vibecheck.sections.map((section, sectionIndex) => ({
+            section,
+            results: this.computeResults(id, sectionIndex),
+        }));
+
+        const questionOrder: { sectionIndex: number; questionId: string }[] = [];
+        session.vibecheck.sections.forEach((section, sectionIndex) => {
+            for (const question of section.questions) {
+                questionOrder.push({ sectionIndex, questionId: question.id });
+            }
+        });
+
+        const userIds = new Set<string>();
+        for (const submitters of session.submittedBySection.values()) {
+            for (const userId of submitters) userIds.add(userId);
+        }
+
+        const answers: (Answer | null)[][] = [];
+        for (const userId of userIds) {
+            answers.push(questionOrder.map(({ sectionIndex, questionId }) => {
+                const userAnswers = session.answersBySection.get(sectionIndex)?.get(questionId);
+                const answer = userAnswers?.get(userId);
+                return answer === undefined ? null : answer;
+            }));
+        }
+
+        return {
+            vibecheck: session.vibecheck,
+            sections,
+            answers,
         };
     }
 
@@ -250,16 +305,23 @@ export class Store {
         return !!submitters && submitters.has(userId);
     }
 
-    computeResults(id: string): QuestionResult[] {
+    computeResults(id: string, sectionIndex: number): QuestionResult[] {
         const session = this.sessions.get(id);
         if (!session) return [];
-        const section = session.vibecheck.sections[session.sectionIndex];
+        const section = session.vibecheck.sections[sectionIndex];
         if (!section) return [];
-        const sectionAnswers = session.answersBySection.get(session.sectionIndex);
+        const sectionAnswers = session.answersBySection.get(sectionIndex);
         const results: QuestionResult[] = [];
 
         for (const question of section.questions) {
-            const answers = sectionAnswers ? sectionAnswers.get(question.id) || [] : [];
+            const answers: Answer[] = [];
+            const userAnswers = sectionAnswers ? sectionAnswers.get(question.id) : undefined;
+            if (userAnswers) {
+                for (const answer of userAnswers.values()) {
+                    if (Array.isArray(answer)) answers.push(...answer);
+                    else answers.push(answer);
+                }
+            }
             if (question.kind === 'dimension' || question.kind === 'opposition') {
                 const numbers = answers.filter((a): a is number => typeof a === 'number');
                 let average = 0;

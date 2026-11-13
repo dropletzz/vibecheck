@@ -83,6 +83,10 @@ export class WsServer {
                         this.store.setSection(sessionId, message.index);
                     } else if (message.type === 'close-section') {
                         this.store.closeSection(sessionId);
+                    } else if (message.type === 'summary') {
+                        const summary = this.store.getSummary(sessionId);
+                        if (summary) this.send(ws, { type: 'summary', summary });
+                        return;
                     } else if (message.type === 'terminate') {
                         const sockets = this.participantSockets.get(sessionId);
                         if (sockets) {

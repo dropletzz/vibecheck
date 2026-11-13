@@ -1,5 +1,5 @@
 import { el, renderQuestion } from '../common';
-import { ChoiceResult, ClientMessage, Question, QuestionResult, PresenterState, ServerMessage, SliderResult, TextResult } from '../../common';
+import { ChoiceResult, ClientMessage, Question, QuestionResult, PresenterState, ServerMessage, SliderResult, SummaryState, TextResult } from '../../common';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
@@ -11,6 +11,7 @@ const socket = new WebSocket(`${wsProtocol}://${window.location.host}/?session=$
 let state: PresenterState | null = null;
 let terminated = false;
 let showQuestions = false;
+let summaryState: SummaryState | null = null;
 
 const HISTOGRAM_BARS = 7;
 const HISTOGRAM_RATIO = 4 / 3;
@@ -27,6 +28,9 @@ socket.addEventListener('message', (event) => {
             showQuestions = false;
             render();
             socket.close();
+        } else if (message.type === 'summary') {
+            summaryState = message.summary;
+            render();
         }
     } catch {}
 });
@@ -72,8 +76,50 @@ function render() {
         document.body.replaceChildren(el('main', {}, el('p', { class: 'empty' }, 'connessione...')));
         return;
     }
+    if (summaryState) {
+        document.body.replaceChildren(renderSummaryView());
+        return;
+    }
     document.body.replaceChildren(renderPresenter());
     if (showQuestions) document.body.append(renderQuestionsModal());
+}
+
+function closeSummary() {
+    summaryState = null;
+    render();
+}
+
+function renderSummaryView(): HTMLElement {
+    if (!summaryState) return el('div', {});
+    const summary = summaryState;
+    const children: HTMLElement[] = [
+        el('div', { class: 'row space-between' },
+            el('h1', {}, summary.vibecheck.name || 'riepilogo'),
+            el('button', { class: 'small', onclick: downloadSummary }, 'scarica risposte'),
+        ),
+    ];
+    for (const section of summary.sections) {
+        if (section.section.title) children.push(el('h2', {}, section.section.title));
+        children.push(el('div', {}, ...renderResults(section.results, section.section.questions)));
+    }
+    children.push(el('div', { class: 'nav-row' },
+        el('button', { class: 'big', onclick: closeSummary }, '← indietro'),
+        el('button', { class: 'big danger', onclick: terminate }, 'termina'),
+    ));
+    return el('main', { class: 'presenter' }, ...children);
+}
+
+function downloadSummary() {
+    if (!summaryState) return;
+    const data = { vibecheck: summaryState.vibecheck, answers: summaryState.answers };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const fileName = (summaryState.vibecheck.name.trim().replace(/[^\p{L}\p{N}-]+/gu, '-') || 'vibecheck') + '-risposte.json';
+    const link = el('a', { href: url, download: fileName });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 function renderPresenter(): HTMLElement {
@@ -118,7 +164,7 @@ function renderPresenter(): HTMLElement {
             : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex - 1 }) }, '← indietro'),
         state.phase === 'results'
             ? (lastSection
-                ? el('button', { class: 'big danger', onclick: terminate }, 'termina')
+                ? el('button', { class: 'big', onclick: () => send({ type: 'summary' }) }, 'riepilogo')
                 : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'avanti →'))
             : el('div', {}),
     ));
