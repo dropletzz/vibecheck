@@ -32,7 +32,7 @@ export class HTTPServer {
 
     constructor(config: HTTPServerConfig) {
         this.store = config.store;
-        this.publicFolder = config.publicFolder;
+        this.publicFolder = path.resolve(config.publicFolder);
         this.port = config.port;
         this.server = config.https
             ? https.createServer({
@@ -101,10 +101,12 @@ export class HTTPServer {
             return;
         }
 
-        const sanitizedPath = path
-            .normalize(path.join(this.publicFolder, parsedUrl.pathname))
-            .replace(/^(\.\.[\/\\])+/, '');
-        const filePath = path.join(process.cwd(), sanitizedPath);
+        const filePath = path.normalize(path.join(this.publicFolder, parsedUrl.pathname));
+        if (!filePath.startsWith(this.publicFolder + path.sep)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('403 - Forbidden', 'utf-8');
+            return;
+        }
         const extname = String(path.extname(filePath)).toLowerCase();
         const contentType = MIME_TYPES[extname] || 'application/octet-stream';
 
