@@ -13,9 +13,16 @@ let terminated = false;
 let showQuestions = false;
 let summaryState: SummaryState | null = null;
 
-const HISTOGRAM_BARS = 7;
+const DEFAULT_DENSITY_BARS = 7;
+const MIN_DENSITY_BARS = 3;
+const MAX_DENSITY_BARS = 37;
 const HISTOGRAM_RATIO = 4 / 3;
 let detailedQuestions = new Set<string>();
+let densityBars = new Map<string, number>();
+
+function getDensityBars(questionId: string): number {
+    return densityBars.get(questionId) ?? DEFAULT_DENSITY_BARS;
+}
 
 socket.addEventListener('message', (event) => {
     try {
@@ -291,15 +298,52 @@ function renderSliderDetailed(result: SliderResult, question: Question): HTMLEle
     const sliderQuestion = question.kind === 'dimension' || question.kind === 'opposition' ? question : null;
     const minLabel = sliderQuestion?.minLabel || String(min);
     const maxLabel = sliderQuestion?.maxLabel || '1';
-    return createResultCanvas(HISTOGRAM_RATIO, (ctx, width, height) => {
-        drawHistogram(ctx, width, height, result.values, min, 1, minLabel, maxLabel);
+
+    const canvas = el('canvas', { class: 'result-canvas' });
+    canvas.width = 400;
+    canvas.height = Math.round(400 / HISTOGRAM_RATIO);
+
+    const draw = (bars: number) => {
+        const dpr = window.devicePixelRatio || 1;
+        const cssWidth = canvas.clientWidth;
+        const cssHeight = Math.round(cssWidth / HISTOGRAM_RATIO);
+        canvas.width = Math.round(cssWidth * dpr);
+        canvas.height = Math.round(cssHeight * dpr);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawDiscreteDensity(ctx, cssWidth, cssHeight, result.values, min, 1, minLabel, maxLabel, bars);
+    };
+
+    const initialBars = getDensityBars(question.id);
+    requestAnimationFrame(() => {
+        if (canvas.isConnected) draw(initialBars);
     });
+
+    const barsLabel = el('label', {}, 'barre: ' + initialBars);
+    const barsSlider = el('input', {
+        type: 'range',
+        min: String(MIN_DENSITY_BARS),
+        max: String(MAX_DENSITY_BARS),
+        value: String(initialBars),
+        oninput: () => {
+            const bars = Number(barsSlider.value);
+            densityBars.set(question.id, bars);
+            barsLabel.textContent = 'barre: ' + bars;
+            draw(bars);
+        },
+    });
+
+    return el('div', {},
+        canvas,
+        barsLabel,
+        barsSlider,
+    );
 }
 
-function drawHistogram(ctx: CanvasRenderingContext2D, width: number, height: number, values: number[], min: number, max: number, minLabel: string, maxLabel: string) {
+function drawDiscreteDensity(ctx: CanvasRenderingContext2D, width: number, height: number, values: number[], min: number, max: number, minLabel: string, maxLabel: string, bars: number) {
     ctx.clearRect(0, 0, width, height);
 
-    const bars = HISTOGRAM_BARS;
     const binWidth = (max - min) / bars;
     const counts = new Array(bars).fill(0);
     for (const value of values) {
@@ -319,19 +363,21 @@ function drawHistogram(ctx: CanvasRenderingContext2D, width: number, height: num
     const topPadding = 16;
     const bottomPadding = 26;
     const sidePadding = avgDotRadius + 2;
-    const gap = 3; // only between bars
 
     const plotBottom = height - bottomPadding;
     const plotHeight = plotBottom - topPadding;
     const plotWidth = width - sidePadding * 2;
-    const barWidth = (plotWidth - (bars - 1) * gap) / bars;
+    const barWidth = plotWidth / bars;
 
     ctx.fillStyle = color;
     for (let i = 0; i < bars; i++) {
         const barHeight = (counts[i] / maxCount) * plotHeight;
-        const x = sidePadding + i * (barWidth + gap);
+        const x = sidePadding + i * barWidth;
         const y = plotBottom - barHeight;
         ctx.fillRect(x, y, barWidth, barHeight);
+        ctx.strokeStyle = axisColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, barWidth, barHeight);
 
         if (counts[i] > 0) {
             const percent = Math.round((counts[i] / total) * 100);
