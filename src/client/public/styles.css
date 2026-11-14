@@ -250,6 +250,13 @@ input[type='range'].result-slider {
 .result-header h2 { margin: 0; }
 .result-header button { margin-left: auto; }
 
+.result-header .plot-nav {
+    margin-left: auto;
+    display: flex;
+    gap: 4px;
+}
+.result-header .plot-nav button { margin-left: 0; }
+
 .chips {
     display: flex;
     flex-wrap: wrap;

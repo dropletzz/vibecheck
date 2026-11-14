@@ -79,3 +79,18 @@ create classes WsServer and HTTPServer on the backend so that the src/server/ind
 
 ## iteration 3.2 - making store ws free 
 do not store ws sockets in the Store class, the Store should know absolutely nothing about websockets. it should just store plain json data that can be stringified. once you did that, make the Store periodically save it's whole state to a file. on startup if the file exists load it in the store (before starting the HTTPServer and the WSServer)
+
+
+# iteration 4 - custom plots
+
+we wanna make new kinds of plots and allow the presenter to create custom plots that correlate multiple question results. put all the plotting functions in src/client/plot.ts (they take as arguments canvas ctx and all other parameters necessary for the plot). try to split the code into functions that can be reused in for different kinds of graph (for example a drawHorizontalAxis)
+
+## iterations 4.1 - new numeric plots
+For numeric answers (dimension and opposition):
+* 1d scatter plot: one horizontal axis with transparent dots scattered along the line (more transparent the more answers there are). there is a checkbox 'aggrega' that does a k-means (or something like that) to group the dots, in the plot the surface of the dots is proportional to the number of elements in them.
+* continuous density plot
+
+the default graph becomes the 1d scatter (remove the slided with avg).
+instead of the 'riepilogo'/'dettaglio' button there will be two small buttons with arrows that move between the 3 kinds of graph (1d scatter, discrete density, continuous density).
+
+

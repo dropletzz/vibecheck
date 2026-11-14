@@ -1,5 +1,6 @@
 import { el, renderQuestion } from '../common';
 import { ChoiceResult, ClientMessage, Question, QuestionResult, PresenterState, ServerMessage, SliderResult, SummaryState, TextResult } from '../../common';
+import { drawBarplot, drawContinuousDensity, drawDiscreteDensity, drawScatter1d } from '../plot';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
@@ -16,12 +17,23 @@ let summaryState: SummaryState | null = null;
 const DEFAULT_DENSITY_BARS = 7;
 const MIN_DENSITY_BARS = 3;
 const MAX_DENSITY_BARS = 37;
+const DEFAULT_CLUSTERS = 5;
+const MIN_CLUSTERS = 2;
+const MAX_CLUSTERS = 10;
 const HISTOGRAM_RATIO = 4 / 3;
+const SCATTER_RATIO = 3 / 1;
 let detailedQuestions = new Set<string>();
 let densityBars = new Map<string, number>();
+let clusterCounts = new Map<string, number>();
+let numericPlotType = new Map<string, number>(); // 0 = scatter, 1 = discrete density, 2 = continuous density
+let scatterAggregate = new Set<string>();
 
 function getDensityBars(questionId: string): number {
     return densityBars.get(questionId) ?? DEFAULT_DENSITY_BARS;
+}
+
+function getClusterCount(questionId: string): number {
+    return clusterCounts.get(questionId) ?? DEFAULT_CLUSTERS;
 }
 
 socket.addEventListener('message', (event) => {
@@ -205,10 +217,6 @@ function toggleDetailed(questionId: string) {
     render();
 }
 
-function getCssVar(name: string): string {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
 function renderResults(results: QuestionResult[], questions: Question[]): HTMLElement[] {
     return results.map((result, index) => {
         const question = questions[index];
@@ -218,17 +226,32 @@ function renderResults(results: QuestionResult[], questions: Question[]): HTMLEl
 }
 
 function renderResultCard(result: QuestionResult, question: Question): HTMLElement {
-    const detailed = detailedQuestions.has(question.id);
+    const isNumeric = result.kind === 'dimension' || result.kind === 'opposition';
     const header = el('div', { class: 'result-header' });
     if (question.title) header.append(el('h2', {}, question.title));
 
-    const toggle = getToggleLabels(result);
-    if (toggle) {
-        header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id) }, detailed ? toggle.close : toggle.open));
+    if (isNumeric) {
+        header.append(
+            el('div', { class: 'plot-nav' },
+                el('button', { class: 'small', title: 'grafico precedente', onclick: () => cycleNumericPlot(question.id, -1) }, '←'),
+                el('button', { class: 'small', title: 'grafico successivo', onclick: () => cycleNumericPlot(question.id, 1) }, '→'),
+            ),
+        );
+    } else {
+        const detailed = detailedQuestions.has(question.id);
+        const toggle = getToggleLabels(result);
+        if (toggle) {
+            header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id) }, detailed ? toggle.close : toggle.open));
+        }
     }
 
     const card = el('div', { class: 'card' }, header);
-    card.append(detailed ? renderDetailed(result, question) : renderSummary(result, question));
+    if (isNumeric) {
+        card.append(renderNumericPlot(result as SliderResult, question));
+    } else {
+        const detailed = detailedQuestions.has(question.id);
+        card.append(detailed ? renderDetailed(result, question) : renderSummary(result, question));
+    }
     return card;
 }
 
@@ -236,37 +259,19 @@ function getToggleLabels(result: QuestionResult): { open: string; close: string 
     if (result.kind === 'text') {
         return groupAnswers(result.answers).length > 3 ? { open: 'espandi', close: 'riduci' } : null;
     }
-    return { open: 'dettaglio', close: 'riepilogo' };
+    if (result.kind === 'choice') {
+        return { open: 'dettaglio', close: 'riepilogo' };
+    }
+    return null;
 }
 
 function renderSummary(result: QuestionResult, question: Question): HTMLElement {
-    if (result.kind === 'dimension' || result.kind === 'opposition') {
-        const sliderQuestion = question.kind === 'dimension' || question.kind === 'opposition' ? question : null;
-        return el('div', {},
-            el('div', { class: 'slider-labels' },
-                el('span', {}, sliderQuestion?.minLabel || 'min'),
-                el('span', {}, sliderQuestion?.maxLabel || 'max'),
-            ),
-            el('input', {
-                class: 'result-slider',
-                type: 'range',
-                min: result.kind === 'dimension' ? '0' : '-1',
-                max: '1',
-                step: '0.01',
-                value: String(result.average),
-                tabindex: '-1',
-            }),
-        );
-    }
     if (result.kind === 'choice') return renderChoiceSummary(result, question);
     if (result.kind === 'text') return renderTextSummary(result);
     return el('div', {});
 }
 
 function renderDetailed(result: QuestionResult, question: Question): HTMLElement {
-    if (result.kind === 'dimension' || result.kind === 'opposition') {
-        return renderSliderDetailed(result, question);
-    }
     if (result.kind === 'choice') return renderChoiceDetailed(result, question);
     if (result.kind === 'text') return renderTextDetailed(result);
     return el('div', {});
@@ -293,135 +298,101 @@ function createResultCanvas(aspectRatio: number, draw: (ctx: CanvasRenderingCont
     return canvas;
 }
 
-function renderSliderDetailed(result: SliderResult, question: Question): HTMLElement {
+function cycleNumericPlot(questionId: string, delta: number) {
+    const current = numericPlotType.get(questionId) ?? 0;
+    numericPlotType.set(questionId, (current + delta + 3) % 3);
+    render();
+}
+
+function renderNumericPlot(result: SliderResult, question: Question): HTMLElement {
     const min = result.kind === 'dimension' ? 0 : -1;
     const sliderQuestion = question.kind === 'dimension' || question.kind === 'opposition' ? question : null;
     const minLabel = sliderQuestion?.minLabel || String(min);
     const maxLabel = sliderQuestion?.maxLabel || '1';
+    const type = numericPlotType.get(question.id) ?? 0;
+    const bars = getDensityBars(question.id);
+    const aggregate = scatterAggregate.has(question.id);
+    const clusters = getClusterCount(question.id);
+    const ratio = type === 0 ? SCATTER_RATIO : HISTOGRAM_RATIO;
 
     const canvas = el('canvas', { class: 'result-canvas' });
     canvas.width = 400;
-    canvas.height = Math.round(400 / HISTOGRAM_RATIO);
+    canvas.height = Math.round(400 / ratio);
 
-    const draw = (bars: number) => {
+    const draw = (barsArg: number, kArg: number) => {
         const dpr = window.devicePixelRatio || 1;
-        const cssWidth = canvas.clientWidth;
-        const cssHeight = Math.round(cssWidth / HISTOGRAM_RATIO);
+        const cssWidth = canvas.getBoundingClientRect().width;
+        const cssHeight = Math.round(cssWidth / ratio);
         canvas.width = Math.round(cssWidth * dpr);
         canvas.height = Math.round(cssHeight * dpr);
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawDiscreteDensity(ctx, cssWidth, cssHeight, result.values, min, 1, minLabel, maxLabel, bars);
+        if (type === 0) {
+            drawScatter1d(ctx, cssWidth, cssHeight, result.values, min, 1, minLabel, maxLabel, aggregate, kArg);
+        } else if (type === 1) {
+            drawDiscreteDensity(ctx, cssWidth, cssHeight, result.values, min, 1, minLabel, maxLabel, barsArg);
+        } else {
+            drawContinuousDensity(ctx, cssWidth, cssHeight, result.values, min, 1, minLabel, maxLabel);
+        }
     };
 
-    const initialBars = getDensityBars(question.id);
     requestAnimationFrame(() => {
-        if (canvas.isConnected) draw(initialBars);
+        if (canvas.isConnected) draw(bars, clusters);
     });
 
-    const barsLabel = el('label', {}, 'barre: ' + initialBars);
-    const barsSlider = el('input', {
-        type: 'range',
-        min: String(MIN_DENSITY_BARS),
-        max: String(MAX_DENSITY_BARS),
-        value: String(initialBars),
-        oninput: () => {
-            const bars = Number(barsSlider.value);
-            densityBars.set(question.id, bars);
-            barsLabel.textContent = 'barre: ' + bars;
-            draw(bars);
-        },
-    });
+    const children: HTMLElement[] = [canvas];
 
-    return el('div', {},
-        canvas,
-        barsLabel,
-        barsSlider,
-    );
-}
-
-function drawDiscreteDensity(ctx: CanvasRenderingContext2D, width: number, height: number, values: number[], min: number, max: number, minLabel: string, maxLabel: string, bars: number) {
-    ctx.clearRect(0, 0, width, height);
-
-    const binWidth = (max - min) / bars;
-    const counts = new Array(bars).fill(0);
-    for (const value of values) {
-        let index = Math.floor((value - min) / binWidth);
-        if (index < 0) index = 0;
-        if (index >= bars) index = bars - 1;
-        counts[index]++;
+    if (type === 1) {
+        const barsLabel = el('label', {}, 'barre: ' + bars);
+        const barsSlider = el('input', {
+            type: 'range',
+            min: String(MIN_DENSITY_BARS),
+            max: String(MAX_DENSITY_BARS),
+            value: String(bars),
+            oninput: () => {
+                const newBars = Number(barsSlider.value);
+                densityBars.set(question.id, newBars);
+                barsLabel.textContent = 'barre: ' + newBars;
+                draw(newBars, clusters);
+            },
+        });
+        children.push(barsLabel, barsSlider);
     }
-    const maxCount = Math.max(1, ...counts);
-    const total = values.length;
 
-    const color = getCssVar('--accent-strong') || '#6d95b8';
-    const axisColor = '#000000';
-    const fontFamily = getCssVar('--main-font') || 'sans-serif';
+    if (type === 0) {
+        children.push(el('label', { class: 'check-row' },
+            el('input', {
+                type: 'checkbox',
+                checked: aggregate || null,
+                onchange: () => {
+                    if (scatterAggregate.has(question.id)) scatterAggregate.delete(question.id);
+                    else scatterAggregate.add(question.id);
+                    render();
+                },
+            }),
+            el('span', {}, 'aggrega'),
+        ));
 
-    const avgDotRadius = 6;
-    const topPadding = 16;
-    const bottomPadding = 26;
-    const sidePadding = avgDotRadius + 2;
-
-    const plotBottom = height - bottomPadding;
-    const plotHeight = plotBottom - topPadding;
-    const plotWidth = width - sidePadding * 2;
-    const barWidth = plotWidth / bars;
-
-    ctx.fillStyle = color;
-    for (let i = 0; i < bars; i++) {
-        const barHeight = (counts[i] / maxCount) * plotHeight;
-        const x = sidePadding + i * barWidth;
-        const y = plotBottom - barHeight;
-        ctx.fillRect(x, y, barWidth, barHeight);
-        ctx.strokeStyle = axisColor;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, barWidth, barHeight);
-
-        if (counts[i] > 0) {
-            const percent = Math.round((counts[i] / total) * 100);
-            ctx.fillStyle = axisColor;
-            ctx.font = '13px ' + fontFamily;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(percent + '%', x + barWidth / 2, y - 2);
-            ctx.fillStyle = color;
+        if (aggregate) {
+            const clustersLabel = el('label', {}, 'numero punti: ' + clusters);
+            const clustersSlider = el('input', {
+                type: 'range',
+                min: String(MIN_CLUSTERS),
+                max: String(MAX_CLUSTERS),
+                value: String(clusters),
+                oninput: () => {
+                    const newK = Number(clustersSlider.value);
+                    clusterCounts.set(question.id, newK);
+                    clustersLabel.textContent = 'numero punti: ' + newK;
+                    draw(bars, newK);
+                },
+            });
+            children.push(clustersLabel, clustersSlider);
         }
     }
 
-    ctx.strokeStyle = axisColor;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sidePadding, plotBottom);
-    ctx.lineTo(width - sidePadding, plotBottom);
-    ctx.stroke();
-
-    const tickLength = 5;
-    ctx.beginPath();
-    for (const x of [sidePadding, width / 2, width - sidePadding]) {
-        ctx.moveTo(x, plotBottom);
-        ctx.lineTo(x, plotBottom + tickLength);
-    }
-    ctx.stroke();
-
-    ctx.fillStyle = axisColor;
-    ctx.font = '14px ' + fontFamily;
-    ctx.textBaseline = 'top';
-    ctx.textAlign = 'left';
-    ctx.fillText(minLabel, sidePadding, plotBottom + tickLength + 4);
-    ctx.textAlign = 'right';
-    ctx.fillText(maxLabel, width - sidePadding, plotBottom + tickLength + 4);
-
-    const average = values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : min;
-    const dotX = sidePadding + ((average - min) / (max - min)) * plotWidth;
-    ctx.beginPath();
-    ctx.arc(dotX, plotBottom, avgDotRadius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = axisColor;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    return el('div', {}, ...children);
 }
 
 function renderTextSummary(result: TextResult): HTMLElement {
@@ -478,40 +449,6 @@ function renderChoiceDetailed(result: ChoiceResult, question: Question): HTMLEle
     if (entries.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
     return createResultCanvas(400 / (entries.length * 36), (ctx, width, height) => {
         drawBarplot(ctx, width, height, entries);
-    });
-}
-
-function drawBarplot(ctx: CanvasRenderingContext2D, width: number, height: number, entries: [string, number][]) {
-    ctx.clearRect(0, 0, width, height);
-
-    const rowHeight = height / entries.length;
-    const maxCount = Math.max(1, ...entries.map(([, count]) => count));
-    const total = entries.reduce((sum, [, count]) => sum + count, 0);
-    const barColor = getCssVar('--accent-strong') || '#6d95b8';
-    const textColor = getCssVar('--text') || '#33302a';
-    const fontFamily = getCssVar('--main-font') || 'sans-serif';
-    const labelWidth = 110;
-    const rightSpace = 56;
-
-    entries.forEach(([label, count], i) => {
-        const y = i * rowHeight;
-        const barHeight = rowHeight * 0.55;
-        const barWidth = (count / maxCount) * (width - labelWidth - rightSpace);
-        const barY = y + (rowHeight - barHeight) / 2;
-
-        ctx.fillStyle = barColor;
-        ctx.fillRect(labelWidth, barY, barWidth > 0 ? barWidth : 1, barHeight);
-
-        ctx.fillStyle = textColor;
-        ctx.font = '14px ' + fontFamily;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        const shortLabel = label.length > 12 ? label.slice(0, 12) + '…' : label;
-        ctx.fillText(shortLabel, labelWidth - 8, y + rowHeight / 2);
-
-        const percent = total > 0 ? Math.round((count / total) * 100) : 0;
-        ctx.textAlign = 'left';
-        ctx.fillText(percent + '%', labelWidth + barWidth + 6, y + rowHeight / 2);
     });
 }
 
