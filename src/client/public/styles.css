@@ -410,6 +410,24 @@ label {
 
 .slider-box { position: relative; }
 
+.slider {
+    display: block;
+    outline: none;
+}
+.slider canvas {
+    display: block;
+    width: 100%;
+    height: 40px;
+    touch-action: none;
+}
+.slider.disabled canvas {
+    opacity: 0.5;
+}
+.slider:focus-visible canvas {
+    border-radius: 8px;
+    box-shadow: 0 0 0 2px var(--accent-strong);
+}
+
 /* modals */
 
 .modal-overlay {

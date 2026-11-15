@@ -1,6 +1,6 @@
 // participant page: answer the current section
 
-import { el, elLoading, renderQuestion } from '../common';
+import { el, elLoading, makeSlider, renderQuestion, SliderElement } from '../common';
 import { Answer, ParticipantState, Question, QuestionId, SessionId, TextQuestion, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 
@@ -132,20 +132,16 @@ function renderQuestionDisabled(question: Question, answers: any[]): HTMLElement
 
     if (question.kind === 'dimension' || question.kind === 'opposition') {
         const value = answers.length > 0 ? Number(answers[0]) : (question.defaultValue ?? 0);
-        box.append(
-            el('div', { class: 'slider-labels' },
-                el('span', {}, question.minLabel || 'min'),
-                el('span', {}, question.maxLabel || 'max'),
-            ),
-            el('input', {
-                type: 'range',
-                min: question.kind === 'dimension' ? '0' : '-1',
-                max: '1',
-                step: '0.01',
-                value: String(value),
-                disabled: true,
-            }),
-        );
+        const options = {
+            value,
+            step: 0.01,
+            minLabel: question.minLabel || 'min',
+            maxLabel: question.maxLabel || 'max',
+            disabled: true,
+        };
+        box.append(question.kind === 'dimension'
+            ? makeSlider({ ...options, min: 0, max: 1 })
+            : makeSlider({ ...options, min: -1, max: 1, centered: true }));
     } else if (question.kind === 'text') {
         if (question.multipleAnswers) {
             const values = answers.filter((answer) => typeof answer === 'string') as string[];
@@ -231,9 +227,9 @@ function collectAnswers(): Record<QuestionId, Answer | null> {
         }
 
         if (question.kind === 'dimension' || question.kind === 'opposition') {
-            const input = box.querySelector('input[type="range"]') as HTMLInputElement | null;
-            if (input) {
-                const value = Number(input.value);
+            const slider = box.querySelector('.slider') as SliderElement | null;
+            if (slider) {
+                const value = slider.value;
                 answers[question.id] = value;
                 myAnswers[question.id] = [value];
             }
@@ -303,9 +299,11 @@ function addPreferNot(question: Question, box: HTMLElement) {
 }
 
 function setQuestionInputsDisabled(box: HTMLElement, disabled: boolean) {
-    box.querySelectorAll('input[type="range"], input[type="radio"]').forEach((input) => {
+    box.querySelectorAll('input[type="radio"]').forEach((input) => {
         (input as HTMLInputElement).disabled = disabled;
     });
+    const slider = box.querySelector('.slider') as SliderElement | null;
+    if (slider) slider.disabled = disabled;
 }
 
 function prefillQuestion(question: Question, box: HTMLElement) {
@@ -319,8 +317,8 @@ function prefillQuestion(question: Question, box: HTMLElement) {
         return;
     }
     if (question.kind === 'dimension' || question.kind === 'opposition') {
-        const input = box.querySelector('input[type="range"]') as HTMLInputElement | null;
-        if (input && saved.length > 0) input.value = String(saved[0]);
+        const slider = box.querySelector('.slider') as SliderElement | null;
+        if (slider && saved.length > 0) slider.value = Number(saved[0]);
     } else if (question.kind === 'text') {
         const textarea = box.querySelector('textarea') as HTMLTextAreaElement | null;
         if (textarea && saved.length > 0) textarea.value = String(saved[0]);
