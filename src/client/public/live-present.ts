@@ -1,4 +1,4 @@
-import { el, elLoading, renderQuestion } from '../common';
+import { el, elLoading, makeSlider, renderQuestion } from '../common';
 import { ChoiceResult, ClientMessage, Nonce, Question, QuestionResult, PresenterState, SessionId, SliderResult, SummaryState, TextResult } from '../../common';
 import { drawBarplot, drawContinuousDensity, drawDiscreteDensity, drawScatter1d } from '../plot';
 import { PersistentWS } from '../wsock';
@@ -362,13 +362,12 @@ function renderNumericPlot(result: SliderResult, question: Question): HTMLElemen
 
     if (type === 1) {
         const barsLabel = el('label', {}, 'barre: ' + bars);
-        const barsSlider = el('input', {
-            type: 'range',
-            min: String(MIN_DENSITY_BARS),
-            max: String(MAX_DENSITY_BARS),
-            value: String(bars),
-            oninput: () => {
-                const newBars = Number(barsSlider.value);
+        const barsSlider = makeSlider({
+            value: bars,
+            min: MIN_DENSITY_BARS,
+            max: MAX_DENSITY_BARS,
+            step: 1,
+            onChange: (newBars) => {
                 densityBars.set(question.id, newBars);
                 barsLabel.textContent = 'barre: ' + newBars;
                 draw(newBars, clusters);
@@ -393,13 +392,12 @@ function renderNumericPlot(result: SliderResult, question: Question): HTMLElemen
 
         if (aggregate) {
             const clustersLabel = el('label', {}, 'numero punti: ' + clusters);
-            const clustersSlider = el('input', {
-                type: 'range',
-                min: String(MIN_CLUSTERS),
-                max: String(MAX_CLUSTERS),
-                value: String(clusters),
-                oninput: () => {
-                    const newK = Number(clustersSlider.value);
+            const clustersSlider = makeSlider({
+                value: clusters,
+                min: MIN_CLUSTERS,
+                max: MAX_CLUSTERS,
+                step: 1,
+                onChange: (newK) => {
                     clusterCounts.set(question.id, newK);
                     clustersLabel.textContent = 'numero punti: ' + newK;
                     draw(bars, newK);

@@ -12,7 +12,7 @@ import {
     makeVibecheck,
     validateVibecheck,
 } from '../../common';
-import { el, loadModels, renderQuestion, saveModels } from '../common';
+import { el, loadModels, makeSlider, renderQuestion, saveModels } from '../common';
 
 let models: VibecheckModel[] = loadModels();
 let view: 'list' | 'edit' = 'list';
@@ -406,26 +406,26 @@ function renderQuestionFields(question: Question): HTMLElement {
 
 function renderTextFields(question: TextQuestion): HTMLElement {
     const lengthLabel = el('label', {}, 'lunghezza massima: ' + question.maxLength + ' caratteri');
-    const range = el('input', {
-        type: 'range',
-        min: '1',
-        max: '1000',
-        value: String(question.maxLength),
-        oninput: () => {
-            question.maxLength = Number(range.value);
+    const range = makeSlider({
+        value: question.maxLength,
+        min: 1,
+        max: 1000,
+        step: 1,
+        onChange: (value) => {
+            question.maxLength = value;
             lengthLabel.textContent = 'lunghezza massima: ' + question.maxLength + ' caratteri';
             saveModels(models);
         },
     });
 
     const maxAnswersLabel = el('label', {}, 'risposte massime: ' + question.maxAnswers);
-    const maxAnswersRange = el('input', {
-        type: 'range',
-        min: '2',
-        max: String(MAX_MULTIPLE_ANSWERS),
-        value: String(question.maxAnswers),
-        oninput: () => {
-            question.maxAnswers = Number(maxAnswersRange.value);
+    const maxAnswersRange = makeSlider({
+        value: question.maxAnswers,
+        min: 2,
+        max: MAX_MULTIPLE_ANSWERS,
+        step: 1,
+        onChange: (value) => {
+            question.maxAnswers = value;
             maxAnswersLabel.textContent = 'risposte massime: ' + question.maxAnswers;
             saveModels(models);
         },
@@ -480,13 +480,13 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
     });
 
     const maxAnswersLabel = el('label', {}, 'risposte massime: ' + question.maxAnswers);
-    const maxAnswersRange = el('input', {
-        type: 'range',
-        min: '2',
-        max: String(MAX_MULTIPLE_ANSWERS),
-        value: String(question.maxAnswers),
-        oninput: () => {
-            question.maxAnswers = Number(maxAnswersRange.value);
+    const maxAnswersRange = makeSlider({
+        value: question.maxAnswers,
+        min: 2,
+        max: MAX_MULTIPLE_ANSWERS,
+        step: 1,
+        onChange: (value) => {
+            question.maxAnswers = value;
             maxAnswersLabel.textContent = 'risposte massime: ' + question.maxAnswers;
             saveModels(models);
         },
@@ -580,13 +580,15 @@ function renderKindSquare(kind: Question['kind']): HTMLElement {
     square.append(el('div', { class: 'kind-square-title' }, kindLabel(kind)));
     const preview = el('div', { class: 'preview' });
     if (kind === 'dimension' || kind === 'opposition') {
-        preview.append(
-            el('div', { class: 'slider-labels' },
-                el('span', {}, kind === 'dimension' ? '0' : 'no'),
-                el('span', {}, kind === 'dimension' ? '∞' : 'sì'),
-            ),
-            el('input', { type: 'range', disabled: true, value: kind === 'dimension' ? '0' : '50' }),
-        );
+        preview.append(makeSlider({
+            value: 0,
+            min: kind === 'dimension' ? 0 : -1,
+            max: 1,
+            centered: kind === 'opposition',
+            minLabel: kind === 'dimension' ? '0' : 'no',
+            maxLabel: kind === 'dimension' ? '∞' : 'sì',
+            disabled: true,
+        }));
     } else if (kind === 'text') {
         preview.append(
             el('div', {}, 'domanda'),
