@@ -11,7 +11,7 @@ let state: ParticipantState | null = null;
 let terminated = false;
 let questionBoxes: HTMLElement[] = [];
 let myAnswers: Record<string, any[]> = {};
-let lastSectionId: string | null = null;
+let lastSectionIndex: number | null = null;
 
 function goHome() {
     window.location.href = '/';
@@ -56,10 +56,9 @@ const client = new PersistentWS({
     onMessage(message) {
         if (message.type === 'participant-state') {
             state = message.state;
-            const sectionId = state.section?.id || null;
-            if (sectionId !== lastSectionId) {
-                lastSectionId = sectionId;
-                myAnswers = loadAnswers(sectionId);
+            if (state.sectionIndex !== lastSectionIndex) {
+                lastSectionIndex = state.sectionIndex;
+                myAnswers = loadAnswers(state.sectionIndex);
             }
             render();
         } else if (message.type === 'terminated') {
@@ -259,18 +258,18 @@ function collectAnswers(): Record<QuestionId, Answer> {
     return answers;
 }
 
-function saveAnswers(sectionId: string) {
+function saveAnswers(sectionIndex: number) {
     try {
-        localStorage.setItem('vibecheck.answers.' + sessionId, JSON.stringify({ sectionId, answers: myAnswers }));
+        localStorage.setItem('vibecheck.answers.' + sessionId, JSON.stringify({ sectionIndex, answers: myAnswers }));
     } catch {}
 }
 
-function loadAnswers(sectionId: string): Record<string, any[]> {
+function loadAnswers(sectionIndex: number): Record<string, any[]> {
     try {
         const raw = localStorage.getItem('vibecheck.answers.' + sessionId);
         if (!raw) return {};
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.sectionId === sectionId && parsed.answers && typeof parsed.answers === 'object') {
+        if (parsed && parsed.sectionIndex === sectionIndex && parsed.answers && typeof parsed.answers === 'object') {
             return parsed.answers;
         }
     } catch {}
@@ -317,14 +316,14 @@ window.addEventListener('pagehide', () => {
     try {
         if (!state || state.phase !== 'answering' || state.submitted) return;
         collectAnswers();
-        if (state.section) saveAnswers(state.section.id);
+        saveAnswers(state.sectionIndex);
     } catch {}
 });
 
 const saveAnswersThrottled = throttle(() => {
     if (!state || state.phase !== 'answering' || state.submitted) return;
     collectAnswers();
-    if (state.section) saveAnswers(state.section.id);
+    saveAnswers(state.sectionIndex);
 }, 300);
 
 document.addEventListener('input', (event) => {

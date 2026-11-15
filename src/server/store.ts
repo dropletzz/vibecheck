@@ -46,19 +46,30 @@ function validateStore(raw: any): Record<string, Session> {
         if (typeof session.id !== 'string') throw new Error('invalid session.id');
         if (typeof session.nonce !== 'string') throw new Error('invalid session.nonce');
         validateVibecheck(session.vibecheck);
-        if (typeof session.sectionIndex !== 'number' || !Number.isFinite(session.sectionIndex)) throw new Error('invalid session.sectionIndex');
-        if (!Array.isArray(session.closedSections) || !session.closedSections.every((value: any) => typeof value === 'number' && Number.isFinite(value))) throw new Error('invalid session.closedSections');
+
+        const sectionCount = session.vibecheck.sections.length;
+        const validSectionIndex = (value: any): boolean =>
+            typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < sectionCount;
+        const validSectionKey = (key: string): boolean => {
+            const n = Number(key);
+            return Number.isInteger(n) && n >= 0 && n < sectionCount;
+        };
+
+        if (!validSectionIndex(session.sectionIndex)) throw new Error('invalid session.sectionIndex');
+        if (!Array.isArray(session.closedSections) || !session.closedSections.every(validSectionIndex)) throw new Error('invalid session.closedSections');
         if (!session.participants || typeof session.participants !== 'object' || Array.isArray(session.participants)) throw new Error('invalid session.participants');
 
         const submitted = session.submittedBySection;
         if (!submitted || typeof submitted !== 'object' || Array.isArray(submitted)) throw new Error('invalid session.submittedBySection');
-        for (const value of Object.values(submitted)) {
+        for (const [key, value] of Object.entries(submitted)) {
+            if (!validSectionKey(key)) throw new Error('invalid session.submittedBySection');
             if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid session.submittedBySection');
         }
 
         const answersBySection = session.answersBySection;
         if (!answersBySection || typeof answersBySection !== 'object' || Array.isArray(answersBySection)) throw new Error('invalid session.answersBySection');
-        for (const questions of Object.values(answersBySection)) {
+        for (const [key, questions] of Object.entries(answersBySection)) {
+            if (!validSectionKey(key)) throw new Error('invalid session.answersBySection.section');
             if (!questions || typeof questions !== 'object' || Array.isArray(questions)) throw new Error('invalid session.answersBySection.section');
             for (const userAnswers of Object.values(questions)) {
                 if (!userAnswers || typeof userAnswers !== 'object' || Array.isArray(userAnswers)) throw new Error('invalid session.answersBySection.question');
@@ -246,6 +257,7 @@ export class Store {
             phase,
             name: session.vibecheck.name,
             section: phase === 'answering' ? session.vibecheck.sections[session.sectionIndex] : null,
+            sectionIndex: session.sectionIndex,
             submitted: this.isSubmitted(id, userId),
         };
     }

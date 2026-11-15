@@ -246,7 +246,7 @@ function insertSectionButton(index: number): HTMLElement {
         currentVibecheck().sections.splice(index, 0, section);
         saveModels(models);
         render(true);
-        document.querySelector('[data-section-id="' + section.id + '"]')?.scrollIntoView({ block: 'center' });
+        document.querySelector('[data-section-index="' + index + '"]')?.scrollIntoView({ block: 'center' });
     } }, '+ sezione');
 }
 
@@ -271,7 +271,7 @@ function renderSectionEditor(section: Section, sectionIndex: number): HTMLElemen
         questionsBox.append(insertQuestionButton(sectionIndex, questionIndex + 1));
     });
 
-    return el('div', { class: 'card', 'data-section-id': section.id },
+    return el('div', { class: 'card', 'data-section-index': sectionIndex },
         el('div', { class: 'section-header' },
             titleInput,
             el('button', { class: 'small danger', title: 'elimina sezione', onclick: () => {

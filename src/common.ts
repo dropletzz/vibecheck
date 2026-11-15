@@ -40,7 +40,6 @@ export function debounce(fn: (...args: any[]) => void, waitMs: number): (...args
 type Brand<T, B> = T & { readonly __brand: B };
 
 export type VibecheckId = Brand<string, 'VibecheckId'>;
-export type SectionId = Brand<string, 'SectionId'>;
 export type QuestionId = Brand<string, 'QuestionId'>;
 export type SessionId = Brand<string, 'SessionId'>;
 export type UserId = Brand<string, 'UserId'>;
@@ -53,7 +52,6 @@ export interface VibecheckModel {
 }
 
 export interface Section {
-    id: SectionId;
     title: string; // optional: an empty title is not shown
     questions: Question[];
 }
@@ -106,7 +104,7 @@ export function makeVibecheck(): VibecheckModel {
 }
 
 export function makeSection(): Section {
-    return { id: makeId() as SectionId, title: '', questions: [] };
+    return { title: '', questions: [] };
 }
 
 export function makeQuestion(kind: Question['kind']): Question {
@@ -164,6 +162,7 @@ export interface ParticipantState {
     phase: 'answering' | 'results';
     name: string;
     section: Section | null;
+    sectionIndex: number;
     submitted: boolean;
 }
 
@@ -235,7 +234,6 @@ export function validateVibecheck(raw: any): VibecheckModel {
 
 function validateSection(raw: any): void {
     if (!raw || typeof raw !== 'object') throw new Error('invalid section');
-    if (typeof raw.id !== 'string') throw new Error('invalid section.id');
     if (typeof raw.title !== 'string') throw new Error('invalid section.title');
     if (!Array.isArray(raw.questions)) throw new Error('invalid section.questions');
     for (const question of raw.questions) validateQuestion(question);
