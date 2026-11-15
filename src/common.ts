@@ -1,7 +1,41 @@
-// code shared between the client and the server
 
 // close code the server sends for permanent errors (unknown session, invalid nonce)
 export const FATAL_CLOSE_CODE = 4001;
+
+// TODO throttle and debounce seem a bit sloppish, see if we can make them simpler
+export function throttle(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
+    let last = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (...args: any[]) => {
+        const now = Date.now();
+        const remaining = waitMs - (now - last);
+        if (remaining <= 0) {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            last = now;
+            fn(...args);
+        } else if (!timer) {
+            timer = setTimeout(() => {
+                last = Date.now();
+                timer = null;
+                fn(...args);
+            }, remaining);
+        }
+    };
+}
+
+export function debounce(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (...args: any[]) => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+            timer = null;
+            fn(...args);
+        }, waitMs);
+    };
+}
 
 export interface VibecheckModel {
     id: string;

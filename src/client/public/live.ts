@@ -1,7 +1,7 @@
 // participant page: answer the current section
 
 import { el, elLoading, renderQuestion } from '../common';
-import { ClientMessage, ParticipantState, Question, TextQuestion } from '../../common';
+import { ParticipantState, Question, TextQuestion, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 
 const params = new URLSearchParams(window.location.search);
@@ -59,7 +59,7 @@ const client = new PersistentWS({
             const sectionId = state.section?.id || null;
             if (sectionId !== lastSectionId) {
                 lastSectionId = sectionId;
-                myAnswers = {};
+                myAnswers = loadAnswers(sectionId);
             }
             render();
         } else if (message.type === 'terminated') {
@@ -105,11 +105,15 @@ function renderParticipant(): HTMLElement {
     } else {
         const section = state.section;
         if (section?.title) children.push(el('h2', {}, section.title));
-        questionBoxes = (section?.questions || []).map((question) =>
-            question.kind === 'text' && question.multipleAnswers
-                ? renderMultipleAnswersQuestion(question)
-                : renderQuestion(question),
-        );
+        questionBoxes = (section?.questions || []).map((question) => {
+            if (question.kind === 'text' && question.multipleAnswers) {
+                const initial = (myAnswers[question.id] || []).filter((a) => typeof a === 'string') as string[];
+                return renderMultipleAnswersQuestion(question, initial);
+            }
+            const box = renderQuestion(question);
+            prefillQuestion(question, box);
+            return box;
+        });
         children.push(el('div', {}, ...questionBoxes));
         children.push(el('button', { class: 'big full', onclick: submit }, 'invia'));
     }
@@ -166,7 +170,7 @@ function renderQuestionDisabled(question: Question, answers: any[]): HTMLElement
     return box;
 }
 
-function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
+function renderMultipleAnswersQuestion(question: TextQuestion, initial: string[]): HTMLElement {
     const box = el('div', { class: 'question ' + question.kind });
     if (question.title) box.append(el('h2', {}, question.title));
 
@@ -175,11 +179,12 @@ function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
     let currentInput: HTMLInputElement | null = null;
     let inputCount = 0;
 
-    const addInput = () => {
+    const addInput = (value = '') => {
         const input = el('input', {
             type: 'text',
             maxlength: String(question.maxLength),
             placeholder: 'scrivi la risposta',
+            value,
         });
         input.addEventListener('input', () => {
             if (input === currentInput) {
@@ -192,29 +197,29 @@ function renderMultipleAnswersQuestion(question: TextQuestion): HTMLElement {
         if (inputCount >= question.maxAnswers) {
             addButton.style.display = 'none';
         } else {
-            addButton.disabled = true;
+            addButton.disabled = value.length === 0;
         }
     };
 
-    addButton.addEventListener('click', addInput);
-    addInput();
+    addButton.addEventListener('click', () => addInput());
+    const values = initial.length > 0 ? initial : [''];
+    values.forEach((value) => addInput(value));
 
     box.append(answersBox, addButton);
     return box;
 }
 
-function submit() {
+function collectAnswers(): Record<string, any> {
     const section = state.section;
-    if (!section) return;
-    if (!confirm('vuoi inviare le tue risposte?')) return;
     const answers: Record<string, any> = {};
+    if (!section) return answers;
 
     section.questions.forEach((question, index) => {
         const box = questionBoxes[index];
         if (!box) return;
 
         if (question.kind === 'dimension' || question.kind === 'opposition') {
-            const input = box.querySelector('input[type="range"]') as HTMLInputElement;
+            const input = box.querySelector('input[type="range"]') as HTMLInputElement | null;
             if (input) {
                 const value = Number(input.value);
                 answers[question.id] = value;
@@ -231,7 +236,7 @@ function submit() {
                     myAnswers[question.id] = values;
                 }
             } else {
-                const textarea = box.querySelector('textarea') as HTMLTextAreaElement;
+                const textarea = box.querySelector('textarea') as HTMLTextAreaElement | null;
                 const value = textarea ? textarea.value.trim() : '';
                 if (value.length > 0) {
                     answers[question.id] = value;
@@ -251,6 +256,50 @@ function submit() {
         }
     });
 
+    return answers;
+}
+
+function saveAnswers(sectionId: string) {
+    try {
+        localStorage.setItem('vibecheck.answers.' + sessionId, JSON.stringify({ sectionId, answers: myAnswers }));
+    } catch {}
+}
+
+function loadAnswers(sectionId: string): Record<string, any[]> {
+    try {
+        const raw = localStorage.getItem('vibecheck.answers.' + sessionId);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.sectionId === sectionId && parsed.answers && typeof parsed.answers === 'object') {
+            return parsed.answers;
+        }
+    } catch {}
+    return {};
+}
+
+function prefillQuestion(question: Question, box: HTMLElement) {
+    const saved = myAnswers[question.id] || [];
+    if (question.kind === 'dimension' || question.kind === 'opposition') {
+        const input = box.querySelector('input[type="range"]') as HTMLInputElement | null;
+        if (input && saved.length > 0) input.value = String(saved[0]);
+    } else if (question.kind === 'text') {
+        const textarea = box.querySelector('textarea') as HTMLTextAreaElement | null;
+        if (textarea && saved.length > 0) textarea.value = String(saved[0]);
+    } else {
+        const selected = saved.filter((a) => typeof a === 'string') as string[];
+        box.querySelectorAll('input').forEach((input) => {
+            const el = input as HTMLInputElement;
+            el.checked = selected.includes(el.value);
+        });
+    }
+}
+
+function submit() {
+    const section = state.section;
+    if (!section) return;
+    if (!confirm('vuoi inviare le tue risposte?')) return;
+    const answers = collectAnswers();
+
     for (const question of section.questions) {
         const value = answers[question.id];
         if (!Array.isArray(value)) continue;
@@ -261,6 +310,27 @@ function submit() {
         }
     }
 
-    const message: ClientMessage = { type: 'submit', answers };
-    client.send(message);
+    client.send({ type: 'submit', answers });
 }
+
+window.addEventListener('pagehide', () => {
+    try {
+        if (!state || state.phase !== 'answering' || state.submitted) return;
+        collectAnswers();
+        if (state.section) saveAnswers(state.section.id);
+    } catch {}
+});
+
+const saveAnswersThrottled = throttle(() => {
+    if (!state || state.phase !== 'answering' || state.submitted) return;
+    collectAnswers();
+    if (state.section) saveAnswers(state.section.id);
+}, 300);
+
+document.addEventListener('input', (event) => {
+    if ((event.target as Element | null)?.closest('.question')) saveAnswersThrottled();
+});
+
+document.addEventListener('change', (event) => {
+    if ((event.target as Element | null)?.closest('.question')) saveAnswersThrottled();
+});
