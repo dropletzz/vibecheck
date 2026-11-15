@@ -2,7 +2,7 @@ import * as http from 'http';
 import * as https from 'https';
 import { WebSocketServer } from 'ws';
 import { Store } from './store';
-import { ClientMessage, FATAL_CLOSE_CODE, ServerMessage, makeId } from '../common';
+import { ClientMessage, FATAL_CLOSE_CODE, Nonce, ServerMessage, SessionId, UserId, makeId } from '../common';
 
 interface WsServerConfig {
     server: http.Server | https.Server;
@@ -29,14 +29,14 @@ export class WsServer {
         if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
     }
 
-    private sendPresenterState(sessionId: string) {
+    private sendPresenterState(sessionId: SessionId) {
         const ws = this.presenterSockets.get(sessionId);
         if (!ws) return;
         const state = this.store.getPresenterState(sessionId);
         if (state) this.send(ws, { type: 'state', state });
     }
 
-    private broadcastParticipants(sessionId: string) {
+    private broadcastParticipants(sessionId: SessionId) {
         const sockets = this.participantSockets.get(sessionId);
         if (!sockets) return;
         for (const userId of this.store.getParticipantIds(sessionId)) {
@@ -61,7 +61,7 @@ export class WsServer {
 
     private handleConnection(ws: any, req: http.IncomingMessage) {
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
-        const sessionId = url.searchParams.get('session') || '';
+        const sessionId = (url.searchParams.get('session') || '') as SessionId;
         const role = url.searchParams.get('role') || 'participant';
 
         if (!sessionId || !this.store.hasSession(sessionId)) {
@@ -70,7 +70,7 @@ export class WsServer {
         }
 
         if (role === 'presenter') {
-            const nonce = url.searchParams.get('nonce') || '';
+            const nonce = (url.searchParams.get('nonce') || '') as Nonce;
             if (!this.store.validateNonce(sessionId, nonce)) {
                 ws.close(FATAL_CLOSE_CODE, 'nonce non valido');
                 return;
@@ -108,7 +108,7 @@ export class WsServer {
             this.sendPresenterState(sessionId);
         } else {
             const cookies = this.parseCookies(req);
-            const userId = cookies.userId || 'anon-' + makeId();
+            const userId = (cookies.userId || 'anon-' + makeId()) as UserId;
             this.store.addParticipant(sessionId, userId);
 
             let sockets = this.participantSockets.get(sessionId);

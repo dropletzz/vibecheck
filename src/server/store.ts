@@ -4,24 +4,28 @@
 import * as fs from 'fs';
 import {
     Answer,
+    Nonce,
     ParticipantState,
     PresenterState,
+    QuestionId,
     QuestionResult,
+    SessionId,
     SummaryState,
+    UserId,
     VibecheckModel,
     makeId,
     validateVibecheck,
 } from '../common';
 
 interface Session {
-    id: string;
-    nonce: string;
+    id: SessionId;
+    nonce: Nonce;
     vibecheck: VibecheckModel;
     sectionIndex: number;
     closedSections: number[];
-    participants: Record<string, true>;
-    submittedBySection: Record<string, Record<string, true>>; // section index -> userId -> true
-    answersBySection: Record<string, Record<string, Record<string, Answer>>>; // section index -> questionId -> userId
+    participants: Record<UserId, true>;
+    submittedBySection: Record<string, Record<UserId, true>>; // section index -> userId -> true
+    answersBySection: Record<string, Record<QuestionId, Record<UserId, Answer>>>; // section index -> questionId -> userId
     createdAt: number;
 }
 
@@ -36,8 +40,7 @@ function validateStore(raw: any): Record<string, Session> {
         throw new Error('invalid store');
     }
 
-    const sessions: Record<string, Session> = {};
-    for (const [id, rawSession] of Object.entries(raw.sessions)) {
+    for (const rawSession of Object.values(raw.sessions)) {
         const session = rawSession as any;
         if (!session || typeof session !== 'object' || Array.isArray(session)) throw new Error('invalid session');
         if (typeof session.id !== 'string') throw new Error('invalid session.id');
@@ -64,10 +67,9 @@ function validateStore(raw: any): Record<string, Session> {
         }
 
         if (typeof session.createdAt !== 'number' || !Number.isFinite(session.createdAt)) throw new Error('invalid session.createdAt');
-
-        sessions[id] = session as Session;
     }
-    return sessions;
+
+    return raw.sessions as Record<string, Session>;
 }
 
 export class Store {
@@ -108,9 +110,9 @@ export class Store {
         setInterval(() => this.save(), intervalMs);
     }
 
-    createSession(vibecheck: VibecheckModel): { id: string; nonce: string } {
-        const id = makeId();
-        const nonce = makeId() + '-' + makeId();
+    createSession(vibecheck: VibecheckModel): { id: SessionId; nonce: Nonce } {
+        const id = makeId() as SessionId;
+        const nonce = (makeId() + '-' + makeId()) as Nonce;
         this.sessions[id] = {
             id,
             nonce,
@@ -125,59 +127,59 @@ export class Store {
         return { id, nonce };
     }
 
-    getSession(id: string): Session | undefined {
+    getSession(id: SessionId): Session | undefined {
         return this.sessions[id];
     }
 
-    hasSession(id: string): boolean {
+    hasSession(id: SessionId): boolean {
         return !!this.sessions[id];
     }
 
-    validateNonce(id: string, nonce: string): boolean {
+    validateNonce(id: SessionId, nonce: Nonce): boolean {
         const session = this.sessions[id];
         return !!session && session.nonce === nonce;
     }
 
-    addParticipant(id: string, userId: string) {
+    addParticipant(id: SessionId, userId: UserId) {
         const session = this.sessions[id];
         if (session) session.participants[userId] = true;
     }
 
-    removeParticipant(id: string, userId: string) {
+    removeParticipant(id: SessionId, userId: UserId) {
         const session = this.sessions[id];
         if (session) delete session.participants[userId];
     }
 
-    getParticipantIds(id: string): string[] {
+    getParticipantIds(id: SessionId): UserId[] {
         const session = this.sessions[id];
-        return session ? Object.keys(session.participants) : [];
+        return session ? Object.keys(session.participants) as UserId[] : [];
     }
 
-    setSection(id: string, index: number) {
+    setSection(id: SessionId, index: number) {
         const session = this.sessions[id];
         if (!session) return;
         if (!Number.isFinite(index) || index < 0 || index >= session.vibecheck.sections.length) return;
         session.sectionIndex = index;
     }
 
-    closeSection(id: string) {
+    closeSection(id: SessionId) {
         const session = this.sessions[id];
         if (session && !session.closedSections.includes(session.sectionIndex)) {
             session.closedSections.push(session.sectionIndex);
         }
     }
 
-    private phase(id: string): 'answering' | 'results' {
+    private phase(id: SessionId): 'answering' | 'results' {
         const session = this.sessions[id];
         if (!session) return 'answering';
         return session.closedSections.includes(session.sectionIndex) ? 'results' : 'answering';
     }
 
-    deleteSession(id: string) {
+    deleteSession(id: SessionId) {
         delete this.sessions[id];
     }
 
-    submitAnswers(id: string, userId: string, answers: Record<string, Answer>) {
+    submitAnswers(id: SessionId, userId: UserId, answers: Record<QuestionId, Answer>) {
         const session = this.sessions[id];
         if (!session || this.phase(id) !== 'answering') return;
         if (this.isSubmitted(id, userId)) return;
@@ -220,7 +222,7 @@ export class Store {
         submitters[userId] = true;
     }
 
-    getPresenterState(id: string): PresenterState | null {
+    getPresenterState(id: SessionId): PresenterState | null {
         const session = this.sessions[id];
         if (!session) return null;
         const phase = this.phase(id);
@@ -236,7 +238,7 @@ export class Store {
         };
     }
 
-    getParticipantState(id: string, userId: string): ParticipantState | null {
+    getParticipantState(id: SessionId, userId: UserId): ParticipantState | null {
         const session = this.sessions[id];
         if (!session) return null;
         const phase = this.phase(id);
@@ -248,7 +250,7 @@ export class Store {
         };
     }
 
-    getSummary(id: string): SummaryState | null {
+    getSummary(id: SessionId): SummaryState | null {
         const session = this.sessions[id];
         if (!session) return null;
 
@@ -257,16 +259,16 @@ export class Store {
             results: this.computeResults(id, sectionIndex),
         }));
 
-        const questionOrder: { sectionIndex: number; questionId: string }[] = [];
+        const questionOrder: { sectionIndex: number; questionId: QuestionId }[] = [];
         session.vibecheck.sections.forEach((section, sectionIndex) => {
             for (const question of section.questions) {
                 questionOrder.push({ sectionIndex, questionId: question.id });
             }
         });
 
-        const userIds = new Set<string>();
+        const userIds = new Set<UserId>();
         for (const submitters of Object.values(session.submittedBySection)) {
-            for (const userId of Object.keys(submitters)) userIds.add(userId);
+            for (const userId of Object.keys(submitters) as UserId[]) userIds.add(userId);
         }
 
         const answers: (Answer | null)[][] = [];
@@ -285,21 +287,21 @@ export class Store {
         };
     }
 
-    answerCount(id: string): number {
+    answerCount(id: SessionId): number {
         const session = this.sessions[id];
         if (!session) return 0;
         const submitters = session.submittedBySection[String(session.sectionIndex)];
         return submitters ? Object.keys(submitters).length : 0;
     }
 
-    isSubmitted(id: string, userId: string): boolean {
+    isSubmitted(id: SessionId, userId: UserId): boolean {
         const session = this.sessions[id];
         if (!session) return false;
         const submitters = session.submittedBySection[String(session.sectionIndex)];
         return !!submitters && Object.hasOwn(submitters, userId);
     }
 
-    computeResults(id: string, sectionIndex: number): QuestionResult[] {
+    computeResults(id: SessionId, sectionIndex: number): QuestionResult[] {
         const session = this.sessions[id];
         if (!session) return [];
         const section = session.vibecheck.sections[sectionIndex];

@@ -1,11 +1,11 @@
 import { el, elLoading, renderQuestion } from '../common';
-import { ChoiceResult, ClientMessage, Question, QuestionResult, PresenterState, SliderResult, SummaryState, TextResult } from '../../common';
+import { ChoiceResult, ClientMessage, Nonce, Question, QuestionResult, PresenterState, SessionId, SliderResult, SummaryState, TextResult } from '../../common';
 import { drawBarplot, drawContinuousDensity, drawDiscreteDensity, drawScatter1d } from '../plot';
 import { PersistentWS } from '../wsock';
 
 const params = new URLSearchParams(window.location.search);
-const sessionId = params.get('id') || '';
-const nonce = localStorage.getItem('vibecheck.nonce.' + sessionId) || '';
+const sessionId = (params.get('id') || '') as SessionId;
+const nonce = (localStorage.getItem('vibecheck.nonce.' + sessionId) || '') as Nonce;
 
 let state: PresenterState | null = null;
 let terminated = false;

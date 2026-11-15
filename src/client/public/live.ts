@@ -1,11 +1,11 @@
 // participant page: answer the current section
 
 import { el, elLoading, renderQuestion } from '../common';
-import { ParticipantState, Question, TextQuestion, throttle } from '../../common';
+import { Answer, ParticipantState, Question, QuestionId, SessionId, TextQuestion, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 
 const params = new URLSearchParams(window.location.search);
-const sessionId = params.get('id') || '';
+const sessionId = (params.get('id') || '') as SessionId;
 
 let state: ParticipantState | null = null;
 let terminated = false;
@@ -209,9 +209,9 @@ function renderMultipleAnswersQuestion(question: TextQuestion, initial: string[]
     return box;
 }
 
-function collectAnswers(): Record<string, any> {
+function collectAnswers(): Record<QuestionId, Answer> {
     const section = state.section;
-    const answers: Record<string, any> = {};
+    const answers: Record<QuestionId, Answer> = {};
     if (!section) return answers;
 
     section.questions.forEach((question, index) => {

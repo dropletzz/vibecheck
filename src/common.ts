@@ -37,14 +37,23 @@ export function debounce(fn: (...args: any[]) => void, waitMs: number): (...args
     };
 }
 
+type Brand<T, B> = T & { readonly __brand: B };
+
+export type VibecheckId = Brand<string, 'VibecheckId'>;
+export type SectionId = Brand<string, 'SectionId'>;
+export type QuestionId = Brand<string, 'QuestionId'>;
+export type SessionId = Brand<string, 'SessionId'>;
+export type UserId = Brand<string, 'UserId'>;
+export type Nonce = Brand<string, 'Nonce'>;
+
 export interface VibecheckModel {
-    id: string;
+    id: VibecheckId;
     name: string;
     sections: Section[];
 }
 
 export interface Section {
-    id: string;
+    id: SectionId;
     title: string; // optional: an empty title is not shown
     questions: Question[];
 }
@@ -56,7 +65,7 @@ export type Question =
     | ChoiceQuestion;
 
 interface BaseQuestion {
-    id: string;
+    id: QuestionId;
     title: string;
 }
 
@@ -93,23 +102,24 @@ export function makeId(): string {
 }
 
 export function makeVibecheck(): VibecheckModel {
-    return { id: makeId(), name: '', sections: [makeSection()] };
+    return { id: makeId() as VibecheckId, name: '', sections: [makeSection()] };
 }
 
 export function makeSection(): Section {
-    return { id: makeId(), title: '', questions: [] };
+    return { id: makeId() as SectionId, title: '', questions: [] };
 }
 
 export function makeQuestion(kind: Question['kind']): Question {
+    const id = makeId() as QuestionId;
     switch (kind) {
         case 'dimension':
-            return { id: makeId(), kind, title: '', minLabel: '0', maxLabel: '∞', defaultValue: 0 };
+            return { id, kind, title: '', minLabel: '0', maxLabel: '∞', defaultValue: 0 };
         case 'opposition':
-            return { id: makeId(), kind, title: '', minLabel: 'no', maxLabel: 'yes', defaultValue: 0 };
+            return { id, kind, title: '', minLabel: 'no', maxLabel: 'yes', defaultValue: 0 };
         case 'text':
-            return { id: makeId(), kind, title: '', maxLength: 200, multipleAnswers: false, maxAnswers: 5 };
+            return { id, kind, title: '', maxLength: 200, multipleAnswers: false, maxAnswers: 5 };
         case 'choice':
-            return { id: makeId(), kind, title: '', multipleChoices: false, maxAnswers: 5, choices: ['', ''] };
+            return { id, kind, title: '', multipleChoices: false, maxAnswers: 5, choices: ['', ''] };
     }
 }
 
@@ -202,7 +212,7 @@ export interface TerminateMessage {
 
 export interface SubmitMessage {
     type: 'submit';
-    answers: Record<string, Answer>;
+    answers: Record<QuestionId, Answer>;
 }
 
 export interface SummaryRequestMessage {

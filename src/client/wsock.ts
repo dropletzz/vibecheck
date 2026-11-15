@@ -1,15 +1,15 @@
 // PersistentWS: WebSocket client with automatic reconnection.
 // close() is the only way to stop it permanently (e.g. after a 'terminated' message).
 
-import { ClientMessage, FATAL_CLOSE_CODE, ServerMessage } from '../common';
+import { ClientMessage, FATAL_CLOSE_CODE, Nonce, ServerMessage, SessionId } from '../common';
 
 export type WSocketRole = 'participant' | 'presenter';
 export type PersistentWSState = 'connecting' | 'open' | 'reconnecting' | 'failed' | 'closed';
 
 export interface PersistentWSOptions {
-    sessionId: string;
+    sessionId: SessionId;
     role: WSocketRole;
-    nonce?: string;
+    nonce?: Nonce;
     onMessage: (message: ServerMessage) => void;
     onStateChange?: (state: PersistentWSState, failures: number) => void;
     minDelayMs?: number;

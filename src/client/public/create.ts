@@ -4,6 +4,7 @@ import {
     Question,
     Section,
     TextQuestion,
+    VibecheckId,
     VibecheckModel,
     makeId,
     makeQuestion,
@@ -110,7 +111,7 @@ function renderList(): HTMLElement {
             reader.onload = () => {
                 try {
                     const vibecheck = validateVibecheck(JSON.parse(String(reader.result)));
-                    vibecheck.id = makeId();
+                    vibecheck.id = makeId() as VibecheckId;
                     models.push(vibecheck);
                     saveModels(models);
                     render();
