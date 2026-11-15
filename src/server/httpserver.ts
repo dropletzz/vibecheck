@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import * as https from 'https';
 import * as http from 'http';
 import { Store } from './store';
@@ -19,6 +20,7 @@ const MIME_TYPES: Record<string, string> = {
 interface StaticFile {
     file: Buffer;
     mime: string;
+    hash: string;
 }
 
 function loadStaticFiles(publicFolder: string): Map<string, StaticFile> {
@@ -33,9 +35,11 @@ function loadStaticFiles(publicFolder: string): Map<string, StaticFile> {
             } else if (entry.isFile()) {
                 const relative = path.relative(root, full).split(path.sep).join('/');
                 const ext = path.extname(entry.name).toLowerCase();
+                const content = fs.readFileSync(full);
                 files.set('/' + relative, {
-                    file: fs.readFileSync(full),
+                    file: content,
                     mime: MIME_TYPES[ext] || 'application/octet-stream',
+                    hash: crypto.createHash('sha256').update(content).digest('hex'),
                 });
             }
         }
@@ -43,6 +47,13 @@ function loadStaticFiles(publicFolder: string): Map<string, StaticFile> {
 
     walk(root);
     return files;
+}
+
+function matchesEtag(header: string, etag: string): boolean {
+    return header.split(',').some((tag) => {
+        const t = tag.trim();
+        return t === '*' || t === etag || t.replace(/^W\//, '') === etag;
+    });
 }
 
 interface HTTPServerConfig {
@@ -136,7 +147,21 @@ export class HTTPServer {
             return;
         }
 
-        res.writeHead(200, { 'Content-Type': asset.mime });
+        const etag = '"' + asset.hash + '"';
+        const headers = {
+            'Content-Type': asset.mime,
+            'Cache-Control': 'no-cache',
+            'ETag': etag,
+        };
+
+        const ifNoneMatch = req.headers['if-none-match'];
+        if (ifNoneMatch && matchesEtag(ifNoneMatch, etag)) {
+            res.writeHead(304, headers);
+            res.end();
+            return;
+        }
+
+        res.writeHead(200, headers);
         if (req.method === 'HEAD') {
             res.end();
         } else {
