@@ -316,6 +316,17 @@ function renderSectionEditor(section: Section, sectionIndex: number): HTMLElemen
                 render(true);
             } }, '✕'),
         ),
+        el('label', { class: 'check-row' },
+            el('input', {
+                type: 'checkbox',
+                checked: section.showResults || null,
+                onchange: (event) => {
+                    section.showResults = (event.target as HTMLInputElement).checked;
+                    saveModels(models);
+                },
+            }),
+            el('span', {}, 'i partecipanti vedono i risultati'),
+        ),
         questionsBox,
     );
 }
@@ -690,7 +701,12 @@ function computeResults(vibecheck: VibecheckModel, answers: (Answer | null)[][])
                 }
                 result = { kind: 'choice', counts };
             } else {
-                result = { kind: 'text', answers: collected.filter((a): a is string => typeof a === 'string') };
+                result = {
+                    kind: 'text',
+                    answers: collected.filter((a): a is string => typeof a === 'string'),
+                    scores: {},
+                    myVotes: {},
+                };
             }
             sections[sectionIndex].results[questionIndex] = result;
         });

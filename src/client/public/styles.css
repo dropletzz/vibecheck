@@ -289,6 +289,45 @@ input[type='range'].result-slider {
     color: var(--muted);
     font-size: 0.85rem;
 }
+.answer-box .vote {
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.answer-box.with-score {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.answer-box.with-score .answer-text {
+    flex: 1;
+}
+button.vote-up.active,
+button.vote-down.active {
+    transform: translate(
+        calc(var(--btn-depth) - var(--btn-depth-pressed)),
+        calc(var(--btn-depth) - var(--btn-depth-pressed))
+    );
+}
+button.vote-up.active::before,
+button.vote-down.active::before {
+    bottom: calc(-1 * var(--btn-depth-pressed));
+    height: var(--btn-depth-pressed);
+}
+button.vote-up.active::after,
+button.vote-down.active::after {
+    right: calc(-1 * var(--btn-depth-pressed));
+    width: var(--btn-depth-pressed);
+}
+.answer-box .vote-score {
+    color: var(--muted);
+    font-size: 0.85rem;
+    min-width: 14px;
+    text-align: center;
+}
 
 canvas.result-canvas {
     width: 100%;

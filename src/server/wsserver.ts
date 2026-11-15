@@ -127,6 +127,10 @@ export class WsServer {
                         const state = this.store.getParticipantState(sessionId, userId);
                         if (state) this.send(ws, { type: 'participant-state', state });
                         this.sendPresenterState(sessionId);
+                    } else if (message.type === 'vote') {
+                        this.store.vote(sessionId, userId, message.questionId, message.text, message.direction);
+                        this.broadcastParticipants(sessionId);
+                        this.sendPresenterState(sessionId);
                     }
                 } catch {}
             });

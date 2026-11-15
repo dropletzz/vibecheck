@@ -1,6 +1,6 @@
 // participant page: answer the current section
 
-import { el, elLoading, makeSlider, renderQuestion, SliderElement } from '../common';
+import { el, elLoading, makeSlider, renderQuestion, renderResults, SliderElement } from '../common';
 import { Answer, ParticipantState, Question, QuestionId, SessionId, TextQuestion, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 
@@ -93,7 +93,13 @@ function renderParticipant(): HTMLElement {
     const children: HTMLElement[] = [el('h1', {}, state.name || 'partecipa')];
 
     if (state.phase === 'results') {
-        children.push(el('p', { class: 'empty' }, 'le risposte sono chiuse, attendi la prossima sezione'));
+        const section = state.section;
+        if (section?.title) children.push(el('h2', {}, section.title));
+        if (state.results) {
+            children.push(el('div', {}, ...renderResults(state.results, section?.questions || [], render, vote)));
+        } else {
+            children.push(el('p', { class: 'empty' }, 'le risposte sono chiuse, attendi la prossima sezione'));
+        }
     } else if (state.submitted) {
         const section = state.section;
         if (section?.title) children.push(el('h2', {}, section.title));
@@ -265,6 +271,10 @@ function collectAnswers(): Record<QuestionId, Answer | null> {
     });
 
     return answers;
+}
+
+function vote(questionId: string, text: string, direction: 1 | -1) {
+    client.send({ type: 'vote', questionId: questionId as QuestionId, text, direction });
 }
 
 function saveAnswers(sectionIndex: number) {

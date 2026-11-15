@@ -26,6 +26,7 @@ interface Session {
     participants: Record<UserId, true>;
     submittedBySection: Record<string, Record<UserId, true>>; // section index -> userId -> true
     answersBySection: Record<string, Record<QuestionId, Record<UserId, Answer>>>; // section index -> questionId -> userId
+    votesBySection?: Record<string, Record<QuestionId, Record<string, Record<UserId, 1 | -1>>>>; // section -> question -> text -> userId
     createdAt: number;
 }
 
@@ -133,6 +134,7 @@ export class Store {
             participants: {},
             submittedBySection: {},
             answersBySection: {},
+            votesBySection: {},
             createdAt: Date.now(),
         };
         return { id, nonce };
@@ -188,6 +190,37 @@ export class Store {
 
     deleteSession(id: SessionId) {
         delete this.sessions[id];
+    }
+
+    private votesOf(id: SessionId): Record<string, Record<QuestionId, Record<string, Record<UserId, 1 | -1>>>> {
+        const session = this.sessions[id];
+        if (!session) return {};
+        if (!session.votesBySection || typeof session.votesBySection !== 'object') session.votesBySection = {};
+        return session.votesBySection;
+    }
+
+    vote(id: SessionId, userId: UserId, questionId: QuestionId, text: string, direction: 1 | -1) {
+        const session = this.sessions[id];
+        if (!session || this.phase(id) !== 'results') return;
+        const votes = this.votesOf(id);
+        const sectionKey = String(session.sectionIndex);
+        let questionVotes = votes[sectionKey];
+        if (!questionVotes) {
+            questionVotes = {};
+            votes[sectionKey] = questionVotes;
+        }
+        let textVotes = questionVotes[questionId];
+        if (!textVotes) {
+            textVotes = {};
+            questionVotes[questionId] = textVotes;
+        }
+        let users = textVotes[text];
+        if (!users) {
+            users = {};
+            textVotes[text] = users;
+        }
+        if (users[userId] === direction) delete users[userId];
+        else users[userId] = direction;
     }
 
     submitAnswers(id: SessionId, userId: UserId, answers: Record<QuestionId, Answer | null>) {
@@ -253,12 +286,15 @@ export class Store {
         const session = this.sessions[id];
         if (!session) return null;
         const phase = this.phase(id);
+        const section = session.vibecheck.sections[session.sectionIndex];
+        const showResults = phase === 'results' && !!section.showResults;
         return {
             phase,
             name: session.vibecheck.name,
-            section: phase === 'answering' ? session.vibecheck.sections[session.sectionIndex] : null,
+            section: phase === 'answering' || showResults ? section : null,
             sectionIndex: session.sectionIndex,
             submitted: this.isSubmitted(id, userId),
+            results: showResults ? this.computeResults(id, session.sectionIndex, userId) : null,
         };
     }
 
@@ -313,7 +349,7 @@ export class Store {
         return !!submitters && Object.hasOwn(submitters, userId);
     }
 
-    computeResults(id: SessionId, sectionIndex: number): QuestionResult[] {
+    computeResults(id: SessionId, sectionIndex: number, userId?: UserId): QuestionResult[] {
         const session = this.sessions[id];
         if (!session) return [];
         const section = session.vibecheck.sections[sectionIndex];
@@ -348,7 +384,22 @@ export class Store {
                 }
                 results.push({ kind: 'choice', counts });
             } else {
-                results.push({ kind: 'text', answers: answers.filter((a): a is string => typeof a === 'string') });
+                const textAnswers = answers.filter((a): a is string => typeof a === 'string');
+                const scores: Record<string, number> = {};
+                const myVotes: Record<string, 1 | -1> = {};
+                const questionVotes = this.votesOf(id)[String(sectionIndex)]?.[question.id];
+                if (questionVotes) {
+                    for (const [text, users] of Object.entries(questionVotes)) {
+                        let score = 0;
+                        for (const vote of Object.values(users)) {
+                            if (vote === 1) score++;
+                            else score--;
+                        }
+                        scores[text] = score;
+                        if (userId && users[userId] !== undefined) myVotes[text] = users[userId];
+                    }
+                }
+                results.push({ kind: 'text', answers: textAnswers, scores, myVotes });
             }
         }
         return results;

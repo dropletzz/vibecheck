@@ -54,6 +54,7 @@ export interface VibecheckModel {
 export interface Section {
     title: string; // optional: an empty title is not shown
     questions: Question[];
+    showResults?: boolean; // participants can see results after the section is closed
 }
 
 export type Question =
@@ -104,7 +105,7 @@ export function makeVibecheck(): VibecheckModel {
 }
 
 export function makeSection(): Section {
-    return { title: '', questions: [] };
+    return { title: '', questions: [], showResults: false };
 }
 
 export function makeQuestion(kind: Question['kind']): Question {
@@ -143,6 +144,8 @@ export interface ChoiceResult {
 export interface TextResult {
     kind: 'text';
     answers: string[];
+    scores: Record<string, number>; // text -> upvotes - downvotes
+    myVotes: Record<string, 1 | -1>; // text -> viewing user's vote
 }
 
 export type QuestionResult = SliderResult | ChoiceResult | TextResult;
@@ -164,6 +167,7 @@ export interface ParticipantState {
     section: Section | null;
     sectionIndex: number;
     submitted: boolean;
+    results: QuestionResult[] | null;
 }
 
 export interface SummaryState {
@@ -218,7 +222,14 @@ export interface SummaryRequestMessage {
     type: 'summary';
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage;
+export interface VoteMessage {
+    type: 'vote';
+    questionId: QuestionId;
+    text: string;
+    direction: 1 | -1;
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage;
 
 
 // ---------- validation ----------
@@ -235,6 +246,7 @@ export function validateVibecheck(raw: any): VibecheckModel {
 function validateSection(raw: any): void {
     if (!raw || typeof raw !== 'object') throw new Error('invalid section');
     if (typeof raw.title !== 'string') throw new Error('invalid section.title');
+    if (raw.showResults !== undefined && typeof raw.showResults !== 'boolean') throw new Error('invalid section.showResults');
     if (!Array.isArray(raw.questions)) throw new Error('invalid section.questions');
     for (const question of raw.questions) validateQuestion(question);
 }
