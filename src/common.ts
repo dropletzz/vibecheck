@@ -211,7 +211,7 @@ export interface TerminateMessage {
 
 export interface SubmitMessage {
     type: 'submit';
-    answers: Record<QuestionId, Answer>;
+    answers: Record<QuestionId, Answer | null>;
 }
 
 export interface SummaryRequestMessage {

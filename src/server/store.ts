@@ -190,7 +190,7 @@ export class Store {
         delete this.sessions[id];
     }
 
-    submitAnswers(id: SessionId, userId: UserId, answers: Record<QuestionId, Answer>) {
+    submitAnswers(id: SessionId, userId: UserId, answers: Record<QuestionId, Answer | null>) {
         const session = this.sessions[id];
         if (!session || this.phase(id) !== 'answering') return;
         if (this.isSubmitted(id, userId)) return;

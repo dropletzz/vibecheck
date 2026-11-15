@@ -110,6 +110,7 @@ function renderParticipant(): HTMLElement {
                 return renderMultipleAnswersQuestion(question, initial);
             }
             const box = renderQuestion(question);
+            addPreferNot(question, box);
             prefillQuestion(question, box);
             return box;
         });
@@ -123,6 +124,11 @@ function renderParticipant(): HTMLElement {
 function renderQuestionDisabled(question: Question, answers: any[]): HTMLElement {
     const box = el('div', { class: 'question ' + question.kind });
     if (question.title) box.append(el('h2', {}, question.title));
+
+    if (answers.length > 0 && answers[0] === null) {
+        box.append(el('p', {}, 'non rispondere'));
+        return box;
+    }
 
     if (question.kind === 'dimension' || question.kind === 'opposition') {
         const value = answers.length > 0 ? Number(answers[0]) : (question.defaultValue ?? 0);
@@ -208,14 +214,21 @@ function renderMultipleAnswersQuestion(question: TextQuestion, initial: string[]
     return box;
 }
 
-function collectAnswers(): Record<QuestionId, Answer> {
+function collectAnswers(): Record<QuestionId, Answer | null> {
     const section = state.section;
-    const answers: Record<QuestionId, Answer> = {};
+    const answers: Record<QuestionId, Answer | null> = {};
     if (!section) return answers;
 
     section.questions.forEach((question, index) => {
         const box = questionBoxes[index];
         if (!box) return;
+
+        const preferNot = box.querySelector('.prefer-not') as HTMLInputElement | null;
+        if (preferNot && preferNot.checked) {
+            answers[question.id] = null;
+            myAnswers[question.id] = [null];
+            return;
+        }
 
         if (question.kind === 'dimension' || question.kind === 'opposition') {
             const input = box.querySelector('input[type="range"]') as HTMLInputElement | null;
@@ -276,8 +289,35 @@ function loadAnswers(sectionIndex: number): Record<string, any[]> {
     return {};
 }
 
+function addPreferNot(question: Question, box: HTMLElement) {
+    const relevant = question.kind === 'dimension' || question.kind === 'opposition' ||
+        (question.kind === 'choice' && !question.multipleChoices);
+    if (!relevant) return;
+
+    const checkbox = el('input', { type: 'checkbox', class: 'prefer-not' });
+    checkbox.addEventListener('change', () => setQuestionInputsDisabled(box, checkbox.checked));
+    box.append(el('label', { class: 'check-row prefer-not-row' },
+        checkbox,
+        el('span', {}, 'preferisco non rispondere'),
+    ));
+}
+
+function setQuestionInputsDisabled(box: HTMLElement, disabled: boolean) {
+    box.querySelectorAll('input[type="range"], input[type="radio"]').forEach((input) => {
+        (input as HTMLInputElement).disabled = disabled;
+    });
+}
+
 function prefillQuestion(question: Question, box: HTMLElement) {
     const saved = myAnswers[question.id] || [];
+    if (saved.length > 0 && saved[0] === null) {
+        const preferNot = box.querySelector('.prefer-not') as HTMLInputElement | null;
+        if (preferNot) {
+            preferNot.checked = true;
+            setQuestionInputsDisabled(box, true);
+        }
+        return;
+    }
     if (question.kind === 'dimension' || question.kind === 'opposition') {
         const input = box.querySelector('input[type="range"]') as HTMLInputElement | null;
         if (input && saved.length > 0) input.value = String(saved[0]);
