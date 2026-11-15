@@ -1,13 +1,11 @@
-import { el, renderQuestion } from '../common';
-import { ChoiceResult, ClientMessage, Question, QuestionResult, PresenterState, ServerMessage, SliderResult, SummaryState, TextResult } from '../../common';
+import { el, elLoading, renderQuestion } from '../common';
+import { ChoiceResult, ClientMessage, Question, QuestionResult, PresenterState, SliderResult, SummaryState, TextResult } from '../../common';
 import { drawBarplot, drawContinuousDensity, drawDiscreteDensity, drawScatter1d } from '../plot';
+import { PersistentWS } from '../wsock';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
 const nonce = localStorage.getItem('vibecheck.nonce.' + sessionId) || '';
-
-const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const socket = new WebSocket(`${wsProtocol}://${window.location.host}/?session=${encodeURIComponent(sessionId)}&role=presenter&nonce=${encodeURIComponent(nonce)}`);
 
 let state: PresenterState | null = null;
 let terminated = false;
@@ -36,9 +34,25 @@ function getClusterCount(questionId: string): number {
     return clusterCounts.get(questionId) ?? DEFAULT_CLUSTERS;
 }
 
-socket.addEventListener('message', (event) => {
-    try {
-        const message = JSON.parse(event.data) as ServerMessage;
+let reconnectOverlay: HTMLElement | null = null;
+
+function showReconnecting() {
+    if (!reconnectOverlay) {
+        reconnectOverlay = elLoading();
+        document.documentElement.append(reconnectOverlay);
+    }
+    reconnectOverlay.classList.remove('reconnect-hidden');
+}
+
+function hideReconnecting() {
+    if (reconnectOverlay) reconnectOverlay.classList.add('reconnect-hidden');
+}
+
+const client = new PersistentWS({
+    sessionId,
+    role: 'presenter',
+    nonce,
+    onMessage(message) {
         if (message.type === 'state') {
             state = message.state;
             render();
@@ -46,18 +60,20 @@ socket.addEventListener('message', (event) => {
             terminated = true;
             showQuestions = false;
             render();
-            socket.close();
+            client.close();
         } else if (message.type === 'summary') {
             summaryState = message.summary;
             render();
         }
-    } catch {}
-});
-
-socket.addEventListener('close', () => {
-    if (!terminated) {
-        document.body.replaceChildren(renderConnectionError());
-    }
+    },
+    onStateChange(wsState) {
+        if (wsState === 'reconnecting') showReconnecting();
+        else if (wsState === 'open') hideReconnecting();
+        else if (wsState === 'failed') {
+            hideReconnecting();
+            document.body.replaceChildren(renderConnectionError());
+        }
+    },
 });
 
 function participantLink(): string {
@@ -81,7 +97,8 @@ function renderConnectionError(): HTMLElement {
     return el('main', {},
         el('p', { class: 'empty' }, 'sembra ci siano problemi di connessione'),
         el('div', { class: 'home-actions' },
-            el('button', { class: 'big', onclick: () => window.location.reload() }, 'ricarica la pagina'),
+            el('button', { class: 'big', onclick: () => client.retry() }, 'riprova'),
+            el('button', { class: 'big', onclick: goHome }, 'torna alla home'),
         ),
     );
 }
@@ -483,5 +500,5 @@ function terminate() {
 }
 
 function send(payload: ClientMessage) {
-    socket.send(JSON.stringify(payload));
+    client.send(payload);
 }

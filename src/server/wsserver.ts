@@ -2,7 +2,7 @@ import * as http from 'http';
 import * as https from 'https';
 import { WebSocketServer } from 'ws';
 import { Store } from './store';
-import { ClientMessage, ServerMessage, makeId } from '../common';
+import { ClientMessage, FATAL_CLOSE_CODE, ServerMessage, makeId } from '../common';
 
 interface WsServerConfig {
     server: http.Server | https.Server;
@@ -65,14 +65,14 @@ export class WsServer {
         const role = url.searchParams.get('role') || 'participant';
 
         if (!sessionId || !this.store.hasSession(sessionId)) {
-            ws.close();
+            ws.close(FATAL_CLOSE_CODE, 'sessione non trovata');
             return;
         }
 
         if (role === 'presenter') {
             const nonce = url.searchParams.get('nonce') || '';
             if (!this.store.validateNonce(sessionId, nonce)) {
-                ws.close();
+                ws.close(FATAL_CLOSE_CODE, 'nonce non valido');
                 return;
             }
             this.presenterSockets.set(sessionId, ws);

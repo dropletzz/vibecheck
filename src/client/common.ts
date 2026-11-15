@@ -105,3 +105,15 @@ export function saveModels(models: VibecheckModel[]): boolean {
     }
 }
 
+export function elLoading(): HTMLElement {
+    return el('div', { class: 'reconnect-overlay' },
+        el('div', {}, 'un secondo',
+            el('span', { class: 'reconnect-dots' },
+                el('span', {}, '.'),
+                el('span', {}, '.'),
+                el('span', {}, '.'),
+            ),
+        ),
+    );
+}
+

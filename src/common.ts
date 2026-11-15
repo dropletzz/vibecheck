@@ -1,5 +1,8 @@
 // code shared between the client and the server
 
+// close code the server sends for permanent errors (unknown session, invalid nonce)
+export const FATAL_CLOSE_CODE = 4001;
+
 export interface VibecheckModel {
     id: string;
     name: string;

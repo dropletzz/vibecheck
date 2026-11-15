@@ -1,13 +1,11 @@
 // participant page: answer the current section
 
-import { el, renderQuestion } from '../common';
-import { ClientMessage, ParticipantState, Question, ServerMessage, TextQuestion } from '../../common';
+import { el, elLoading, renderQuestion } from '../common';
+import { ClientMessage, ParticipantState, Question, TextQuestion } from '../../common';
+import { PersistentWS } from '../wsock';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get('id') || '';
-
-const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const socket = new WebSocket(`${wsProtocol}://${window.location.host}/?session=${encodeURIComponent(sessionId)}&role=participant`);
 
 let state: ParticipantState | null = null;
 let terminated = false;
@@ -32,14 +30,30 @@ function renderConnectionError(): HTMLElement {
     return el('main', {},
         el('p', { class: 'empty' }, 'sembra ci siano problemi di connessione'),
         el('div', { class: 'home-actions' },
-            el('button', { class: 'big', onclick: () => window.location.reload() }, 'ricarica la pagina'),
+            el('button', { class: 'big', onclick: () => client.retry() }, 'riprova'),
+            el('button', { class: 'big', onclick: goHome }, 'torna alla home'),
         ),
     );
 }
 
-socket.addEventListener('message', (event) => {
-    try {
-        const message = JSON.parse(event.data) as ServerMessage;
+let reconnectOverlay: HTMLElement | null = null;
+
+function showReconnecting() {
+    if (!reconnectOverlay) {
+        reconnectOverlay = elLoading();
+        document.documentElement.append(reconnectOverlay);
+    }
+    reconnectOverlay.classList.remove('reconnect-hidden');
+}
+
+function hideReconnecting() {
+    if (reconnectOverlay) reconnectOverlay.classList.add('reconnect-hidden');
+}
+
+const client = new PersistentWS({
+    sessionId,
+    role: 'participant',
+    onMessage(message) {
         if (message.type === 'participant-state') {
             state = message.state;
             const sectionId = state.section?.id || null;
@@ -51,15 +65,17 @@ socket.addEventListener('message', (event) => {
         } else if (message.type === 'terminated') {
             terminated = true;
             render();
-            socket.close();
+            client.close();
         }
-    } catch {}
-});
-
-socket.addEventListener('close', () => {
-    if (!terminated) {
-        document.body.replaceChildren(renderConnectionError());
-    }
+    },
+    onStateChange(wsState) {
+        if (wsState === 'reconnecting') showReconnecting();
+        else if (wsState === 'open') hideReconnecting();
+        else if (wsState === 'failed') {
+            hideReconnecting();
+            document.body.replaceChildren(renderConnectionError());
+        }
+    },
 });
 
 function render() {
@@ -246,5 +262,5 @@ function submit() {
     }
 
     const message: ClientMessage = { type: 'submit', answers };
-    socket.send(JSON.stringify(message));
+    client.send(message);
 }
