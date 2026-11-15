@@ -1,7 +1,9 @@
 import {
+    Answer,
     ChoiceQuestion,
     MAX_MULTIPLE_ANSWERS,
     Question,
+    QuestionResult,
     Section,
     TextQuestion,
     VibecheckId,
@@ -12,13 +14,14 @@ import {
     makeVibecheck,
     validateVibecheck,
 } from '../../common';
-import { el, loadModels, makeSlider, renderQuestion, saveModels } from '../common';
+import { el, loadModels, makeSlider, renderQuestion, renderResults, saveModels } from '../common';
 
 let models: VibecheckModel[] = loadModels();
-let view: 'list' | 'edit' = 'list';
+let view: 'list' | 'edit' | 'results' = 'list';
 let editingId: string | null = null;
 let previewState: { id: string; sectionIndex: number } | null = null;
 let questionPicker: { sectionIndex: number; questionIndex: number } | null = null;
+let answersView: { vibecheck: VibecheckModel; sections: { section: Section; results: QuestionResult[] }[] } | null = null;
 
 function currentVibecheck(): VibecheckModel {
     const vibecheck = models.find((model) => model.id === editingId);
@@ -34,7 +37,9 @@ function render(preserveScroll = false) {
 }
 
 function renderMain(): HTMLElement {
-    return view === 'list' ? renderList() : renderEdit();
+    if (view === 'list') return renderList();
+    if (view === 'edit') return renderEdit();
+    return renderResultsView();
 }
 
 function renderModals() {
@@ -53,6 +58,7 @@ function goToList() {
     editingId = null;
     previewState = null;
     questionPicker = null;
+    answersView = null;
     history.replaceState(null, '', window.location.pathname);
     render();
 }
@@ -123,6 +129,33 @@ function renderList(): HTMLElement {
         },
     });
 
+    const answersInput = el('input', {
+        type: 'file',
+        accept: '.json,application/json',
+        hidden: true,
+        onchange: () => {
+            const file = answersInput.files && answersInput.files[0];
+            answersInput.value = '';
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(String(reader.result));
+                    const vibecheck = validateVibecheck(data.vibecheck);
+                    if (!Array.isArray(data.answers) || !data.answers.every((row: any) => Array.isArray(row))) {
+                        throw new Error('invalid answers');
+                    }
+                    answersView = { vibecheck, sections: computeResults(vibecheck, data.answers) };
+                    view = 'results';
+                    render();
+                } catch {
+                    alert('file non valido: non sembra un file di risposte');
+                }
+            };
+            reader.readAsText(file);
+        },
+    });
+
     const list = el('div', {});
     if (models.length === 0) {
         list.append(el('p', { class: 'empty' }, 'nessun vibecheck'));
@@ -135,10 +168,12 @@ function renderList(): HTMLElement {
         el('p', { class: 'muted' }, '(i vibecheck vengono salvati automaticamente in questo browser, se vuoi spostarli da un computer ad un altro salvali su file)'),
         el('div', { class: 'toolbar' },
             el('button', { onclick: () => fileInput.click() }, 'carica da file'),
+            el('button', { onclick: () => answersInput.click() }, 'carica risposte'),
             el('button', { onclick: createNew }, 'nuovo'),
         ),
         list,
         fileInput,
+        answersInput,
     );
 }
 
@@ -605,6 +640,62 @@ function renderKindSquare(kind: Question['kind']): HTMLElement {
     }
     square.append(preview);
     return square;
+}
+
+// ---------- results view (from a loaded answers file) ----------
+
+function renderResultsView(): HTMLElement {
+    if (!answersView) return renderList();
+    const children: HTMLElement[] = [
+        el('div', { class: 'row space-between' },
+            el('button', { class: 'small', onclick: goToList }, '← indietro'),
+            el('h1', {}, answersView.vibecheck.name || 'riepilogo'),
+        ),
+    ];
+    for (const section of answersView.sections) {
+        if (section.section.title) children.push(el('h2', {}, section.section.title));
+        children.push(el('div', {}, ...renderResults(section.results, section.section.questions, render)));
+    }
+    return el('main', { class: 'presenter' }, ...children);
+}
+
+function computeResults(vibecheck: VibecheckModel, answers: (Answer | null)[][]): { section: Section; results: QuestionResult[] }[] {
+    const sections = vibecheck.sections.map((section) => ({ section, results: [] as QuestionResult[] }));
+    let column = 0;
+    vibecheck.sections.forEach((section, sectionIndex) => {
+        section.questions.forEach((question, questionIndex) => {
+            const collected: Answer[] = [];
+            for (const row of answers) {
+                const value = row[column];
+                if (value === null || value === undefined) continue;
+                if (Array.isArray(value)) collected.push(...value);
+                else collected.push(value);
+            }
+            column++;
+
+            let result: QuestionResult;
+            if (question.kind === 'dimension' || question.kind === 'opposition') {
+                const numbers = collected.filter((a): a is number => typeof a === 'number');
+                let average = 0;
+                let variance = 0;
+                if (numbers.length > 0) {
+                    average = numbers.reduce((sum, n) => sum + n, 0) / numbers.length;
+                    variance = numbers.reduce((sum, n) => sum + (n - average) ** 2, 0) / numbers.length;
+                }
+                result = { kind: question.kind, average, variance, values: numbers };
+            } else if (question.kind === 'choice') {
+                const counts: Record<string, number> = {};
+                for (const answer of collected) {
+                    if (typeof answer === 'string') counts[answer] = (counts[answer] || 0) + 1;
+                }
+                result = { kind: 'choice', counts };
+            } else {
+                result = { kind: 'text', answers: collected.filter((a): a is string => typeof a === 'string') };
+            }
+            sections[sectionIndex].results[questionIndex] = result;
+        });
+    });
+    return sections;
 }
 
 const params = new URLSearchParams(window.location.search);
