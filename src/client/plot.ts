@@ -18,8 +18,8 @@ function fontFamily(): string {
 
 const AXIS_COLOR = '#000000';
 
-// horizontal axis with ticks at both ends and in the middle, labels on the same side as the ticks
-export function drawHorizontalAxis(ctx: CanvasRenderingContext2D, leftX: number, rightX: number, y: number, minLabel: string, maxLabel: string, ticksBelow: boolean = true, labelsMargin: number = 0): void {
+// horizontal axis with ticks at both ends and in the middle (above and below), labels below
+export function drawHorizontalAxis(ctx: CanvasRenderingContext2D, leftX: number, rightX: number, y: number, minLabel: string, maxLabel: string): void {
     ctx.strokeStyle = AXIS_COLOR;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -30,21 +30,15 @@ export function drawHorizontalAxis(ctx: CanvasRenderingContext2D, leftX: number,
     const tickLength = 5;
     ctx.beginPath();
     for (const x of [leftX, (leftX + rightX) / 2, rightX]) {
-        if (ticksBelow) {
-            ctx.moveTo(x, y);
-            ctx.lineTo(x, y + tickLength);
-        } else {
-            ctx.moveTo(x, y - tickLength);
-            ctx.lineTo(x, y + tickLength);
-        }
+        ctx.moveTo(x, y - tickLength);
+        ctx.lineTo(x, y + tickLength);
     }
     ctx.stroke();
 
     ctx.fillStyle = AXIS_COLOR;
     ctx.font = '14px ' + fontFamily();
-    const direction = ticksBelow ? 1 : -1;
-    const labelOffset = direction * (tickLength + 4 + labelsMargin);
-    ctx.textBaseline = ticksBelow ? 'top' : 'bottom';
+    const labelOffset = tickLength + 4;
+    ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     ctx.fillText(minLabel, leftX, y + labelOffset);
     ctx.textAlign = 'right';
@@ -164,7 +158,7 @@ export function drawScatter1d(ctx: CanvasRenderingContext2D, width: number, heig
     const plotWidth = width - sidePadding * 2;
     const mapX = (value: number) => sidePadding + ((value - min) / (max - min)) * plotWidth;
 
-    drawHorizontalAxis(ctx, sidePadding, width - sidePadding, axisY, minLabel, maxLabel, false, height / 3);
+    drawHorizontalAxis(ctx, sidePadding, width - sidePadding, axisY, minLabel, maxLabel);
 
     if (aggregate) {
         const clusters = kmeans1d(values, Math.min(k, Math.max(1, values.length)));
