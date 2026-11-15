@@ -20,12 +20,9 @@ interface Session {
     closedSections: Set<number>;
     participants: Set<string>;
     submittedBySection: Map<number, Set<string>>;
-    // section number -> questionId -> userId
-    answersBySection: Map<number, Map<string, Map<string, Answer>>>;
+    answersBySection: Map<number, Map<string, Map<string, Answer>>>; // section number -> questionId -> userId
     createdAt: number;
 }
-
-const DEFAULT_SAVE_INTERVAL_MS = 5000;
 
 export class Store {
     private sessions = new Map<string, Session>();
@@ -35,13 +32,15 @@ export class Store {
         this.filePath = filePath;
     }
 
-    load() {
-        try {
-            const raw = fs.readFileSync(this.filePath, 'utf-8');
-            this.deserialize(JSON.parse(raw));
-        } catch {
-            // no saved state: start fresh
-        }
+    load(): Promise<void> {
+        return new Promise((resolve) => {
+            fs.readFile(this.filePath, 'utf-8', (err, raw) => {
+                if (err) { resolve(); return; }
+                try { this.deserialize(JSON.parse(raw)); }
+                catch { } // corrupt state: start fresh
+                resolve();
+            });
+        });
     }
 
     save() {
@@ -52,7 +51,8 @@ export class Store {
         }
     }
 
-    startAutoSave(intervalMs: number = DEFAULT_SAVE_INTERVAL_MS) {
+    startAutoSave(intervalMs: number) {
+        if (intervalMs <= 0) return;
         setInterval(() => this.save(), intervalMs);
     }
 

@@ -21,7 +21,7 @@ export class WsServer {
         this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));
     }
 
-    start() {
+    async start(): Promise<void> {
         console.log('Server ws in ascolto');
     }
 

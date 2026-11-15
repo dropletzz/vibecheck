@@ -86,10 +86,21 @@ export class HTTPServer {
         return this.server;
     }
 
-    start() {
-        this.server.listen(this.port, () => {
-            const protocol = this.server instanceof https.Server ? 'https' : 'http';
-            console.log(`Server ${protocol} in ascolto sulla porta ${this.port}`);
+    start(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const onError = (error: Error) => {
+                this.server.off('listening', onListening);
+                reject(error);
+            };
+            const onListening = () => {
+                this.server.off('error', onError);
+                const protocol = this.server instanceof https.Server ? 'https' : 'http';
+                console.log(`Server ${protocol} in ascolto sulla porta ${this.port}`);
+                resolve();
+            };
+            this.server.once('error', onError);
+            this.server.once('listening', onListening);
+            this.server.listen(this.port);
         });
     }
 
