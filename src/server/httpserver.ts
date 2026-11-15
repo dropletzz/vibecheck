@@ -16,6 +16,35 @@ const MIME_TYPES: Record<string, string> = {
     '.ttf': 'font/ttf',
 };
 
+interface StaticFile {
+    file: Buffer;
+    mime: string;
+}
+
+function loadStaticFiles(publicFolder: string): Map<string, StaticFile> {
+    const root = path.resolve(publicFolder);
+    const files = new Map<string, StaticFile>();
+
+    const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(full);
+            } else if (entry.isFile()) {
+                const relative = path.relative(root, full).split(path.sep).join('/');
+                const ext = path.extname(entry.name).toLowerCase();
+                files.set('/' + relative, {
+                    file: fs.readFileSync(full),
+                    mime: MIME_TYPES[ext] || 'application/octet-stream',
+                });
+            }
+        }
+    };
+
+    walk(root);
+    return files;
+}
+
 interface HTTPServerConfig {
     port: number;
     publicFolder: string;
@@ -26,21 +55,19 @@ interface HTTPServerConfig {
 export class HTTPServer {
     private server: http.Server | https.Server;
     private store: Store;
-    private publicFolder: string;
-    private indexHTMLFile: Buffer;
+    private staticFiles: Map<string, StaticFile>;
     private port: number;
 
     constructor(config: HTTPServerConfig) {
         this.store = config.store;
-        this.publicFolder = path.resolve(config.publicFolder);
         this.port = config.port;
+        this.staticFiles = loadStaticFiles(config.publicFolder);
         this.server = config.https
             ? https.createServer({
                 key: fs.readFileSync(config.https.key),
                 cert: fs.readFileSync(config.https.cert),
             })
             : http.createServer();
-        this.indexHTMLFile = fs.readFileSync(path.join(this.publicFolder, 'index.html'));
         this.server.on('request', (req, res) => this.handleRequest(req, res));
     }
 
@@ -95,34 +122,25 @@ export class HTTPServer {
             }
         }
 
-        if (req.method === 'GET' && parsedUrl.pathname === '/') {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(this.indexHTMLFile);
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            res.writeHead(405, { 'Content-Type': 'text/plain' });
+            res.end('405 - Method Not Allowed', 'utf-8');
             return;
         }
 
-        const filePath = path.normalize(path.join(this.publicFolder, parsedUrl.pathname));
-        if (!filePath.startsWith(this.publicFolder + path.sep)) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
-            res.end('403 - Forbidden', 'utf-8');
+        const key = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
+        const asset = this.staticFiles.get(key);
+        if (!asset) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('404 - Asset Not Found', 'utf-8');
             return;
         }
-        const extname = String(path.extname(filePath)).toLowerCase();
-        const contentType = MIME_TYPES[extname] || 'application/octet-stream';
 
-        fs.readFile(filePath, (error, content) => {
-            if (error) {
-                if (error.code === 'ENOENT') {
-                    res.writeHead(404, { 'Content-Type': 'text/plain' });
-                    res.end('404 - Asset Not Found', 'utf-8');
-                } else {
-                    res.writeHead(500, { 'Content-Type': 'text/plain' });
-                    res.end(`500 - Server Error: ${error.code}`, 'utf-8');
-                }
-            } else {
-                res.writeHead(200, { 'Content-Type': contentType });
-                res.end(content, 'binary');
-            }
-        });
+        res.writeHead(200, { 'Content-Type': asset.mime });
+        if (req.method === 'HEAD') {
+            res.end();
+        } else {
+            res.end(asset.file);
+        }
     }
 }
