@@ -131,17 +131,16 @@ function renderParticipant(): HTMLElement {
     return el('main', {}, ...children);
 }
 
+const sendEmoji = throttle((emoji: string) => client.send({ type: 'emoji', emoji }), 200);
+
 function renderLobby(): HTMLElement {
-    const rows = [
-        ['👍', '😛', '🙂', '💣', '🔥', '🌸'],
-        ['👎', '🤔', '🙃', '🫧', '💧', '💩'],
-    ];
+    const emojis = ['👍', '😛', '🙂', '💣', '🔥', '🌸', '👎', '🤔', '🙃', '🫧', '💧', '💩'];
     return el('main', { class: 'lobby' },
         el('h1', {}, state.name || 'partecipa'),
         el('p', { class: 'empty' }, 'attendiamo che il vibecheck inizi...'),
-        ...rows.map((emojis) => el('div', { class: 'emoji-bar' },
-            ...emojis.map((emoji) => el('button', { class: 'emoji-btn', onclick: () => client.send({ type: 'emoji', emoji }) }, emoji)),
-        )),
+        el('div', { class: 'emoji-grid' },
+            ...emojis.map((emoji) => el('button', { class: 'emoji-btn', onclick: () => sendEmoji(emoji) }, emoji)),
+        ),
     );
 }
 
