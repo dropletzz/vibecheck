@@ -643,3 +643,10 @@ label {
     30% { opacity: 1; }
 }
 
+
+.qr-canvas {
+    display: block;
+    margin: 16px auto 0;
+    max-width: 100%;
+    height: auto;
+}

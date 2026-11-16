@@ -1,6 +1,7 @@
 import { el, elLoading, renderQuestion, renderResults } from '../common';
 import { ClientMessage, Nonce, PresenterState, SessionId, SummaryState } from '../../common';
 import { PersistentWS } from '../wsock';
+import { renderQrCode } from '../qrcode';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = (params.get('id') || '') as SessionId;
@@ -9,6 +10,7 @@ const nonce = (localStorage.getItem('vibecheck.nonce.' + sessionId) || '') as No
 let state: PresenterState | null = null;
 let terminated = false;
 let showQuestions = false;
+let showQr = false;
 let summaryState: SummaryState | null = null;
 
 let reconnectOverlay: HTMLElement | null = null;
@@ -128,6 +130,7 @@ function render() {
     }
     document.body.replaceChildren(renderPresenter());
     if (showQuestions) document.body.append(renderQuestionsModal());
+    if (showQr) document.body.append(renderQrModal());
     animateAnswerBoxes(prev);
 }
 
@@ -183,7 +186,11 @@ function renderPresenter(): HTMLElement {
 
     const children: HTMLElement[] = [
         el('h1', {}, state.name || 'vibecheck'),
-        el('div', { class: 'link-row' }, linkInput, el('button', { onclick: copyLink }, 'copia')),
+        el('div', { class: 'link-row' },
+            linkInput,
+            el('button', { onclick: copyLink }, 'copia'),
+            el('button', { onclick: () => { showQr = true; render(); } }, 'mostra qr'),
+        ),
     ];
     if (section?.title) children.push(el('h2', {}, section.title));
     children.push(
@@ -237,6 +244,28 @@ function renderQuestionsModal(): HTMLElement {
     );
     if (section?.title) modal.append(el('h2', {}, section.title));
     modal.append(el('div', {}, ...(section?.questions || []).map((question) => renderQuestion(question))));
+
+    overlay.append(modal);
+    return overlay;
+}
+
+function renderQrModal(): HTMLElement {
+    const overlay = el('div', { class: 'modal-overlay' });
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+            showQr = false;
+            render();
+        }
+    });
+
+    const qrCanvas = el('canvas', { class: 'qr-canvas' });
+    renderQrCode(qrCanvas, { text: participantLink() });
+
+    const modal = el('div', { class: 'modal alt-bg' },
+        el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: () => { showQr = false; render(); } }, '✕'),
+        el('h2', {}, 'scansiona per partecipare'),
+        qrCanvas,
+    );
 
     overlay.append(modal);
     return overlay;
