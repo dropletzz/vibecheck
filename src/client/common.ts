@@ -515,8 +515,8 @@ function renderTextDetailed(result: TextResult, onVote?: (text: string, directio
 function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void): HTMLElement[] {
     return groups.map((group) => {
         if (onVote) {
-            const box = el('div', { class: 'answer-box' });
-            if (group.count > 1) box.append(el('span', { class: 'answer-count' }, String(group.count)));
+            const box = el('div', { class: 'answer-box has-vote' });
+            box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
             box.append(el('span', {}, group.text));
             box.append(el('div', { class: 'vote' },
                 el('button', { class: 'small vote-up' + (group.myVote === 1 ? ' active' : ''), onclick: () => onVote(group.text, 1) }, '▲'),
@@ -526,7 +526,7 @@ function renderTextBoxes(groups: { text: string; count: number; score: number; m
             return box;
         }
         const box = el('div', { class: 'answer-box with-score' });
-        if (group.count > 1) box.append(el('span', { class: 'answer-count' }, String(group.count)));
+        box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
         box.append(el('span', { class: 'answer-text' }, group.text));
         if (group.score !== 0) box.append(el('span', { class: 'vote-score' }, (group.score > 0 ? '+' : '') + group.score));
         return box;
