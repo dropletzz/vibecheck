@@ -205,16 +205,15 @@ function renderPresenter(): HTMLElement {
         ));
     }
 
-    const navButtons: HTMLElement[] = [
-        state.sectionIndex === 0
-            ? el('div', {})
-            : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex - 1 }) }, '← indietro'),
-        state.phase === 'results'
-            ? (lastSection
-                ? el('button', { class: 'big', onclick: () => send({ type: 'summary' }) }, 'riepilogo')
-                : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'avanti →'))
-            : el('div', {}),
-    ];
+    const navButtons: HTMLElement[] = [];
+    if (state.sectionIndex > 0) {
+        navButtons.push(el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex - 1 }) }, '← indietro'));
+    }
+    if (state.phase === 'results') {
+        navButtons.push(lastSection
+            ? el('button', { class: 'big', onclick: () => send({ type: 'summary' }) }, 'riepilogo')
+            : el('button', { class: 'big', onclick: () => send({ type: 'set-section', index: state.sectionIndex + 1 }) }, 'avanti →'));
+    }
     if (lastSection && state.phase === 'results') {
         navButtons.push(el('button', { class: 'big danger', onclick: terminate }, 'termina'));
     }
