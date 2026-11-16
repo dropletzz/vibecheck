@@ -1,4 +1,4 @@
-// thin typed wrapper around the vendored qr-creator (src/client/vendor/qr-creator.js)
+// thin typed wrapper around the vendored qr-creator (src/client/deps/qr-creator.js)
 
 import './deps/qr-creator.js';
 

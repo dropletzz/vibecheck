@@ -36,6 +36,12 @@ export class WsServer {
         if (state) this.send(ws, { type: 'state', state });
     }
 
+    private sendEmoji(sessionId: SessionId, emoji: string) {
+        const ws = this.presenterSockets.get(sessionId);
+        if (!ws) return;
+        this.send(ws, { type: 'emoji', emoji: emoji.slice(0, 8) });
+    }
+
     private broadcastParticipants(sessionId: SessionId) {
         const sockets = this.participantSockets.get(sessionId);
         if (!sockets) return;
@@ -83,6 +89,8 @@ export class WsServer {
                         this.store.setSection(sessionId, message.index);
                     } else if (message.type === 'close-section') {
                         this.store.closeSection(sessionId);
+                    } else if (message.type === 'start') {
+                        this.store.startSession(sessionId);
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });
@@ -131,6 +139,8 @@ export class WsServer {
                         this.store.vote(sessionId, userId, message.questionId, message.text, message.direction);
                         this.broadcastParticipants(sessionId);
                         this.sendPresenterState(sessionId);
+                    } else if (message.type === 'emoji') {
+                        this.sendEmoji(sessionId, message.emoji);
                     }
                 } catch {}
             });

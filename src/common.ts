@@ -151,18 +151,18 @@ export interface TextResult {
 export type QuestionResult = SliderResult | ChoiceResult | TextResult;
 
 export interface PresenterState {
+    phase: 'lobby' | 'answering' | 'results';
+    name: string;
+    section: Section | null;
     sectionIndex: number;
     totalSections: number;
-    phase: 'answering' | 'results';
-    name: string;
-    section: Section;
     participantCount: number;
     answerCount: number;
     results: QuestionResult[] | null;
 }
 
 export interface ParticipantState {
-    phase: 'answering' | 'results';
+    phase: 'lobby' | 'answering' | 'results';
     name: string;
     section: Section | null;
     sectionIndex: number;
@@ -198,7 +198,12 @@ export interface SummaryMessage {
     summary: SummaryState;
 }
 
-export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage;
+export interface EmojiEvent {
+    type: 'emoji';
+    emoji: string;
+}
+
+export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent;
 
 export interface SetSectionMessage {
     type: 'set-section';
@@ -229,7 +234,16 @@ export interface VoteMessage {
     direction: 1 | -1;
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage;
+export interface StartMessage {
+    type: 'start';
+}
+
+export interface EmojiMessage {
+    type: 'emoji';
+    emoji: string;
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage;
 
 
 // ---------- validation ----------

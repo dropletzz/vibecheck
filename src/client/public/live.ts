@@ -90,6 +90,10 @@ function render() {
 }
 
 function renderParticipant(): HTMLElement {
+    if (state.phase === 'lobby') {
+        return renderLobby();
+    }
+
     const children: HTMLElement[] = [el('h1', {}, state.name || 'partecipa')];
 
     if (state.phase === 'results') {
@@ -125,6 +129,20 @@ function renderParticipant(): HTMLElement {
     }
 
     return el('main', {}, ...children);
+}
+
+function renderLobby(): HTMLElement {
+    const rows = [
+        ['👍', '😛', '🙂', '💣', '🔥', '🌸'],
+        ['👎', '🤔', '🙃', '🫧', '💧', '💩'],
+    ];
+    return el('main', { class: 'lobby' },
+        el('h1', {}, state.name || 'partecipa'),
+        el('p', { class: 'empty' }, 'attendiamo che il vibecheck inizi...'),
+        ...rows.map((emojis) => el('div', { class: 'emoji-bar' },
+            ...emojis.map((emoji) => el('button', { class: 'emoji-btn', onclick: () => client.send({ type: 'emoji', emoji }) }, emoji)),
+        )),
+    );
 }
 
 function renderQuestionDisabled(question: Question, answers: any[]): HTMLElement {

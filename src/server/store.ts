@@ -22,6 +22,7 @@ interface Session {
     nonce: Nonce;
     vibecheck: VibecheckModel;
     sectionIndex: number;
+    started?: boolean;
     closedSections: number[];
     participants: Record<UserId, true>;
     submittedBySection: Record<string, Record<UserId, true>>; // section index -> userId -> true
@@ -130,6 +131,7 @@ export class Store {
             nonce,
             vibecheck,
             sectionIndex: 0,
+            started: false,
             closedSections: [],
             participants: {},
             submittedBySection: {},
@@ -175,6 +177,13 @@ export class Store {
         session.sectionIndex = index;
     }
 
+    startSession(id: SessionId) {
+        const session = this.sessions[id];
+        if (!session) return;
+        session.started = true;
+        session.sectionIndex = 0;
+    }
+
     closeSection(id: SessionId) {
         const session = this.sessions[id];
         if (session && !session.closedSections.includes(session.sectionIndex)) {
@@ -182,9 +191,10 @@ export class Store {
         }
     }
 
-    private phase(id: SessionId): 'answering' | 'results' {
+    private phase(id: SessionId): 'lobby' | 'answering' | 'results' {
         const session = this.sessions[id];
         if (!session) return 'answering';
+        if (session.started === false) return 'lobby';
         return session.closedSections.includes(session.sectionIndex) ? 'results' : 'answering';
     }
 
@@ -270,14 +280,15 @@ export class Store {
         const session = this.sessions[id];
         if (!session) return null;
         const phase = this.phase(id);
+        const lobby = phase === 'lobby';
         return {
-            sectionIndex: session.sectionIndex,
-            totalSections: session.vibecheck.sections.length,
             phase,
             name: session.vibecheck.name,
-            section: session.vibecheck.sections[session.sectionIndex],
+            section: lobby ? null : session.vibecheck.sections[session.sectionIndex],
+            sectionIndex: session.sectionIndex,
+            totalSections: session.vibecheck.sections.length,
             participantCount: Object.keys(session.participants).length,
-            answerCount: this.answerCount(id),
+            answerCount: lobby ? 0 : this.answerCount(id),
             results: phase === 'results' ? this.computeResults(id, session.sectionIndex) : null,
         };
     }
@@ -286,6 +297,16 @@ export class Store {
         const session = this.sessions[id];
         if (!session) return null;
         const phase = this.phase(id);
+        if (phase === 'lobby') {
+            return {
+                phase,
+                name: session.vibecheck.name,
+                section: null,
+                sectionIndex: session.sectionIndex,
+                submitted: false,
+                results: null,
+            };
+        }
         const section = session.vibecheck.sections[session.sectionIndex];
         const showResults = phase === 'results' && !!section.showResults;
         return {

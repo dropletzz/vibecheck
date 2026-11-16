@@ -8,5 +8,5 @@ aks questions, visualize answers, live
 [x] participants should be able to see results too (configurable in editor for each section)
     [x] participants can like/unlike text responses
 [x] qr
-[ ] custom graphs that compare 2 answers
+[ ] custom plots that compare 2 answers
  
