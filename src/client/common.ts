@@ -325,6 +325,9 @@ export function renderResults(results: QuestionResult[], questions: Question[], 
 
 function renderResultCard(result: QuestionResult, question: Question, rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void): HTMLElement {
     const isNumeric = result.kind === 'dimension' || result.kind === 'opposition';
+    const isText = result.kind === 'text';
+    const alwaysDetailed = !!onVote && isText;
+
     const header = el('div', { class: 'result-header' });
     if (question.title) header.append(el('h2', {}, question.title));
 
@@ -336,9 +339,9 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
             ),
         );
     } else {
-        const detailed = detailedQuestions.has(question.id);
+        const detailed = alwaysDetailed || detailedQuestions.has(question.id);
         const toggle = getToggleLabels(result);
-        if (toggle) {
+        if (toggle && !alwaysDetailed) {
             header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, detailed ? toggle.close : toggle.open));
         }
     }
@@ -348,7 +351,7 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         card.append(renderNumericPlot(result as SliderResult, question, rerender));
     } else {
         const vote = onVote ? (text: string, direction: 1 | -1) => onVote(question.id, text, direction) : undefined;
-        const detailed = detailedQuestions.has(question.id);
+        const detailed = alwaysDetailed || detailedQuestions.has(question.id);
         card.append(detailed ? renderDetailed(result, question, vote) : renderSummary(result, question, vote));
     }
     return card;
@@ -499,7 +502,7 @@ function toggleDetailed(questionId: string, rerender: () => void) {
 }
 
 function renderTextSummary(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void): HTMLElement {
-    const groups = groupTextAnswers(result);
+    const groups = onVote ? groupTextAnswersInOrder(result) : groupTextAnswers(result);
     if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
     const nodes = renderTextBoxes(groups.slice(0, 3), onVote);
     if (groups.length > 3) nodes.push(el('div', { class: 'muted' }, '...'));
@@ -507,7 +510,7 @@ function renderTextSummary(result: TextResult, onVote?: (text: string, direction
 }
 
 function renderTextDetailed(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void): HTMLElement {
-    const groups = groupTextAnswers(result);
+    const groups = onVote ? groupTextAnswersInOrder(result) : groupTextAnswers(result);
     if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
     return el('div', { class: 'text-results' }, ...renderTextBoxes(groups, onVote));
 }
@@ -515,17 +518,16 @@ function renderTextDetailed(result: TextResult, onVote?: (text: string, directio
 function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void): HTMLElement[] {
     return groups.map((group) => {
         if (onVote) {
-            const box = el('div', { class: 'answer-box has-vote' });
-            box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
+            const box = el('div', { class: 'answer-box has-vote' + (group.myVote === 1 ? ' voted-up' : group.myVote === -1 ? ' voted-down' : '') });
+            if (group.count > 1) box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
             box.append(el('span', {}, group.text));
             box.append(el('div', { class: 'vote' },
                 el('button', { class: 'small vote-up' + (group.myVote === 1 ? ' active' : ''), onclick: () => onVote(group.text, 1) }, '▲'),
-                el('span', { class: 'vote-score' }, String(group.score)),
                 el('button', { class: 'small vote-down' + (group.myVote === -1 ? ' active' : ''), onclick: () => onVote(group.text, -1) }, '▼'),
             ));
             return box;
         }
-        const box = el('div', { class: 'answer-box with-score' });
+        const box = el('div', { class: 'answer-box with-score' + (group.score > 0 ? ' voted-up' : group.score < 0 ? ' voted-down' : '') });
         box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
         box.append(el('span', { class: 'answer-text' }, group.text));
         if (group.score !== 0) box.append(el('span', { class: 'vote-score' }, (group.score > 0 ? '+' : '') + group.score));
@@ -541,6 +543,19 @@ function groupTextAnswers(result: TextResult): { text: string; count: number; sc
             myVote: result.myVotes[group.text],
         }))
         .sort((a, b) => b.score - a.score || b.count - a.count);
+}
+
+function groupTextAnswersInOrder(result: TextResult): { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[] {
+    const counts = new Map<string, number>();
+    for (const answer of result.answers) {
+        counts.set(answer, (counts.get(answer) || 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([text, count]) => ({
+        text,
+        count,
+        score: result.scores[text] || 0,
+        myVote: result.myVotes[text],
+    }));
 }
 
 function groupAnswers(answers: string[]): { text: string; count: number }[] {

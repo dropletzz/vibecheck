@@ -269,14 +269,12 @@ input[type='range'].result-slider {
 }
 
 .text-results {
-    max-height: 300px;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 .answer-box {
-    --vote-height: 65px;
+    --vote-height: 60px;
     --vote-margin: 10px;
     position: relative;
     background: var(--card);
@@ -302,6 +300,30 @@ input[type='range'].result-slider {
     flex-direction: column;
     align-items: center;
     justify-content: space-between;
+}
+button.vote-up {
+    background: var(--green);
+}
+button.vote-up::before {
+    background: color-mix(in srgb, black var(--btn-darken-bottom), var(--green));
+}
+button.vote-up::after {
+    background: color-mix(in srgb, black var(--btn-darken-right), var(--green));
+}
+button.vote-down {
+    background: var(--red);
+}
+button.vote-down::before {
+    background: color-mix(in srgb, black var(--btn-darken-bottom), var(--red));
+}
+button.vote-down::after {
+    background: color-mix(in srgb, black var(--btn-darken-right), var(--red));
+}
+.answer-box.voted-up {
+    background: color-mix(in srgb, var(--green) 30%, transparent);
+}
+.answer-box.voted-down {
+    background: color-mix(in srgb, var(--red) 30%, transparent);
 }
 .answer-box.has-vote {
     min-height: calc(var(--vote-height) + 2 * var(--vote-margin));
