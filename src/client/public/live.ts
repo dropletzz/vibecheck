@@ -131,18 +131,62 @@ function renderParticipant(): HTMLElement {
     return el('main', {}, ...children);
 }
 
-const sendEmoji = throttle((emoji: string) => client.send({ type: 'emoji', emoji }), 200);
+function sendEmoji(emoji: string) {
+    client.send({ type: 'emoji', emoji });
+}
 
 function renderLobby(): HTMLElement {
-    const emojis = ['👍', '😛', '🙂', '💣', '🔥', '🌸', '👎', '🤔', '🙃', '🫧', '💧', '💩'];
+    const pairs = [
+        ['🌸', '💩'],
+        ['💣', '🫧'],
+        ['🔥', '💧'],
+        ['👍', '👎'],
+        ['😛', '🤔'],
+        ['🙂', '🙃'],
+    ];
+
+    let fab: HTMLElement;
+    let dropup: HTMLElement;
+
+    const toggleDropup = (open: boolean) => {
+        dropup.classList.toggle('open', open);
+        fab.classList.toggle('active', open);
+    };
+
+    fab = el('span', { class: 'emoji-fab', onclick: () => toggleDropup(!dropup.classList.contains('open')) }, '😀');
+    dropup = el('div', { class: 'emoji-dropup' });
+
+    for (const pair of pairs) {
+        const row = el('div', { class: 'emoji-pair' });
+        for (const emoji of pair) {
+            row.append(el('span', {
+                class: 'emoji-item',
+                onclick: () => {
+                    client.send({ type: 'emoji', emoji });
+                    toggleDropup(false);
+                },
+            }, emoji));
+        }
+        dropup.append(row);
+    }
+
     return el('main', { class: 'lobby' },
         el('h1', {}, state.name || 'partecipa'),
         el('p', { class: 'empty' }, 'attendiamo che il vibecheck inizi...'),
-        el('div', { class: 'emoji-grid' },
-            ...emojis.map((emoji) => el('button', { class: 'emoji-btn', onclick: () => sendEmoji(emoji) }, emoji)),
-        ),
+        fab,
+        dropup,
     );
 }
+
+document.addEventListener('click', (event) => {
+    const dropup = document.querySelector('.emoji-dropup');
+    const fab = document.querySelector('.emoji-fab');
+    if (!dropup || !dropup.classList.contains('open')) return;
+    const target = event.target as Node;
+    if (dropup.contains(target) || (fab && fab.contains(target))) return;
+    dropup.classList.remove('open');
+    if (fab) fab.classList.remove('active');
+});
 
 function renderQuestionDisabled(question: Question, answers: any[]): HTMLElement {
     const box = el('div', { class: 'question ' + question.kind });

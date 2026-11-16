@@ -3,7 +3,7 @@
 export const FATAL_CLOSE_CODE = 4001;
 
 // TODO throttle and debounce seem a bit sloppish, see if we can make them simpler
-export function throttle(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
+export function throttle(fn: (...args: any[]) => void, waitMs: number, trailing: boolean = true): (...args: any[]) => void {
     let last = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     return (...args: any[]) => {
@@ -16,7 +16,7 @@ export function throttle(fn: (...args: any[]) => void, waitMs: number): (...args
             }
             last = now;
             fn(...args);
-        } else if (!timer) {
+        } else if (!timer && trailing) {
             timer = setTimeout(() => {
                 last = Date.now();
                 timer = null;
