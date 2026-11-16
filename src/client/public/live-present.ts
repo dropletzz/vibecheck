@@ -80,7 +80,39 @@ function renderConnectionError(): HTMLElement {
     );
 }
 
+function snapshotAnswerBoxes(): Map<string, DOMRect> {
+    const map = new Map<string, DOMRect>();
+    document.querySelectorAll('.text-results.detailed .answer-box[data-key]').forEach((node) => {
+        const el = node as HTMLElement;
+        const key = el.dataset.key || '';
+        if (key) map.set(key, el.getBoundingClientRect());
+    });
+    return map;
+}
+
+function animateAnswerBoxes(previous: Map<string, DOMRect>) {
+    document.querySelectorAll('.text-results.detailed .answer-box[data-key]').forEach((node) => {
+        const el = node as HTMLElement;
+        const key = el.dataset.key || '';
+        const old = previous.get(key);
+        if (!old) return;
+        const now = el.getBoundingClientRect();
+        const dx = old.left - now.left;
+        const dy = old.top - now.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        el.animate(
+            [
+                { transform: `translate(${dx}px, ${dy}px)` },
+                { transform: 'translate(0, 0)' },
+            ],
+            { duration: 350, easing: 'ease-out' },
+        );
+    });
+}
+
 function render() {
+    const prev = snapshotAnswerBoxes();
+
     if (terminated) {
         document.body.replaceChildren(renderEnd('vibecheck terminato, puoi chiudere questa pagina'));
         return;
@@ -91,10 +123,12 @@ function render() {
     }
     if (summaryState) {
         document.body.replaceChildren(renderSummaryView());
+        animateAnswerBoxes(prev);
         return;
     }
     document.body.replaceChildren(renderPresenter());
     if (showQuestions) document.body.append(renderQuestionsModal());
+    animateAnswerBoxes(prev);
 }
 
 function closeSummary() {

@@ -352,7 +352,7 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
     } else {
         const vote = onVote ? (text: string, direction: 1 | -1) => onVote(question.id, text, direction) : undefined;
         const detailed = alwaysDetailed || detailedQuestions.has(question.id);
-        card.append(detailed ? renderDetailed(result, question, vote) : renderSummary(result, question, vote));
+        card.append(detailed ? renderDetailed(result, question, vote, question.id) : renderSummary(result, question, vote, question.id));
     }
     return card;
 }
@@ -367,15 +367,15 @@ function getToggleLabels(result: QuestionResult): { open: string; close: string 
     return null;
 }
 
-function renderSummary(result: QuestionResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void): HTMLElement {
+function renderSummary(result: QuestionResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
     if (result.kind === 'choice') return renderChoiceSummary(result, question);
-    if (result.kind === 'text') return renderTextSummary(result, onVote);
+    if (result.kind === 'text') return renderTextSummary(result, onVote, questionId);
     return el('div', {});
 }
 
-function renderDetailed(result: QuestionResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void): HTMLElement {
+function renderDetailed(result: QuestionResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
     if (result.kind === 'choice') return renderChoiceDetailed(result, question);
-    if (result.kind === 'text') return renderTextDetailed(result, onVote);
+    if (result.kind === 'text') return renderTextDetailed(result, onVote, questionId);
     return el('div', {});
 }
 
@@ -501,24 +501,25 @@ function toggleDetailed(questionId: string, rerender: () => void) {
     rerender();
 }
 
-function renderTextSummary(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void): HTMLElement {
+function renderTextSummary(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
     const groups = onVote ? groupTextAnswersInOrder(result) : groupTextAnswers(result);
     if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
-    const nodes = renderTextBoxes(groups.slice(0, 3), onVote);
+    const nodes = renderTextBoxes(groups.slice(0, 3), onVote, questionId);
     if (groups.length > 3) nodes.push(el('div', { class: 'muted' }, '...'));
     return el('div', { class: 'text-results' }, ...nodes);
 }
 
-function renderTextDetailed(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void): HTMLElement {
+function renderTextDetailed(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
     const groups = onVote ? groupTextAnswersInOrder(result) : groupTextAnswers(result);
     if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
-    return el('div', { class: 'text-results' }, ...renderTextBoxes(groups, onVote));
+    return el('div', { class: 'text-results detailed' }, ...renderTextBoxes(groups, onVote, questionId));
 }
 
-function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void): HTMLElement[] {
+function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement[] {
     return groups.map((group) => {
+        const key = (questionId ?? '') + '\u0000' + group.text;
         if (onVote) {
-            const box = el('div', { class: 'answer-box has-vote' + (group.myVote === 1 ? ' voted-up' : group.myVote === -1 ? ' voted-down' : '') });
+            const box = el('div', { class: 'answer-box has-vote' + (group.myVote === 1 ? ' voted-up' : group.myVote === -1 ? ' voted-down' : ''), 'data-key': key });
             if (group.count > 1) box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
             box.append(el('span', {}, group.text));
             box.append(el('div', { class: 'vote' },
@@ -527,7 +528,7 @@ function renderTextBoxes(groups: { text: string; count: number; score: number; m
             ));
             return box;
         }
-        const box = el('div', { class: 'answer-box with-score' + (group.score > 0 ? ' voted-up' : group.score < 0 ? ' voted-down' : '') });
+        const box = el('div', { class: 'answer-box with-score' + (group.score > 0 ? ' voted-up' : group.score < 0 ? ' voted-down' : ''), 'data-key': key });
         box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
         box.append(el('span', { class: 'answer-text' }, group.text));
         if (group.score !== 0) box.append(el('span', { class: 'vote-score' }, (group.score > 0 ? '+' : '') + group.score));
