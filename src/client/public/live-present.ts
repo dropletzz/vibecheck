@@ -218,6 +218,14 @@ function renderPresenter(): HTMLElement {
 
     if (state.phase === 'results') {
         children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [], render)));
+        if (state.hasVotable && !state.votingClosed) {
+            children.push(el('div', { class: 'flex-h' },
+                el('button', { class: 'danger', onclick: () => {
+                    if (!confirm('vuoi chiudere le votazioni?')) return;
+                    send({ type: 'close-voting' });
+                } }, 'chiudi votazioni'),
+            ));
+        }
     } else {
         children.push(el('div', { class: 'flex-h' },
             el('button', { onclick: () => { showQuestions = true; render(); } }, 'mostra domande'),

@@ -103,7 +103,9 @@ function renderParticipant(): HTMLElement {
         const section = state.section;
         if (section?.title) children.push(el('h2', {}, section.title));
         if (state.results) {
-            children.push(el('div', {}, ...renderResults(state.results, section?.questions || [], render, vote)));
+            children.push(el('div', {}, ...renderResults(state.results, section?.questions || [], render, vote, (question) =>
+                question.kind === 'text' && !!question.votable && !state.votingClosed,
+            )));
         } else {
             children.push(el('p', { class: 'empty' }, 'le risposte sono chiuse, attendi la prossima sezione'));
         }

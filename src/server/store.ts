@@ -24,6 +24,7 @@ interface Session {
     sectionIndex: number;
     started?: boolean;
     emojiBlocked?: boolean;
+    votingClosed?: boolean;
     closedSections: number[];
     participants: Record<UserId, true>;
     submittedBySection: Record<string, Record<UserId, true>>; // section index -> userId -> true
@@ -49,6 +50,7 @@ function validateStore(raw: any): Record<string, Session> {
         if (typeof session.id !== 'string') throw new Error('invalid session.id');
         if (typeof session.nonce !== 'string') throw new Error('invalid session.nonce');
         validateVibecheck(session.vibecheck);
+        if (session.votingClosed !== undefined && typeof session.votingClosed !== 'boolean') throw new Error('invalid session.votingClosed');
 
         const sectionCount = session.vibecheck.sections.length;
         const validSectionIndex = (value: any): boolean =>
@@ -134,6 +136,7 @@ export class Store {
             sectionIndex: 0,
             started: false,
             emojiBlocked: false,
+            votingClosed: false,
             closedSections: [],
             participants: {},
             submittedBySection: {},
@@ -197,6 +200,22 @@ export class Store {
         return !!session && !!session.emojiBlocked;
     }
 
+    closeVoting(id: SessionId) {
+        const session = this.sessions[id];
+        if (session) session.votingClosed = true;
+    }
+
+    hasVotableQuestions(id: SessionId): boolean {
+        const session = this.sessions[id];
+        if (!session) return false;
+        for (const section of session.vibecheck.sections) {
+            for (const question of section.questions) {
+                if (question.kind === 'text' && question.votable) return true;
+            }
+        }
+        return false;
+    }
+
     closeSection(id: SessionId) {
         const session = this.sessions[id];
         if (session && !session.closedSections.includes(session.sectionIndex)) {
@@ -225,6 +244,11 @@ export class Store {
     vote(id: SessionId, userId: UserId, questionId: QuestionId, text: string, direction: 1 | -1) {
         const session = this.sessions[id];
         if (!session || this.phase(id) !== 'results') return;
+        if (session.votingClosed) return;
+        const section = session.vibecheck.sections[session.sectionIndex];
+        if (!section || !section.showResults) return;
+        const question = section.questions.find((q) => q.id === questionId);
+        if (!question || question.kind !== 'text' || !question.votable) return;
         const votes = this.votesOf(id);
         const sectionKey = String(session.sectionIndex);
         let questionVotes = votes[sectionKey];
@@ -304,6 +328,8 @@ export class Store {
             answerCount: lobby ? 0 : this.answerCount(id),
             results: phase === 'results' ? this.computeResults(id, session.sectionIndex) : null,
             emojiBlocked: !!session.emojiBlocked,
+            votingClosed: !!session.votingClosed,
+            hasVotable: this.hasVotableQuestions(id),
         };
     }
 
@@ -327,6 +353,7 @@ export class Store {
                 sectionIndex: session.sectionIndex,
                 submitted: false,
                 results: null,
+                votingClosed: !!session.votingClosed,
             };
         }
         const section = session.vibecheck.sections[session.sectionIndex];
@@ -338,6 +365,7 @@ export class Store {
             sectionIndex: session.sectionIndex,
             submitted: this.isSubmitted(id, userId),
             results: showResults ? this.computeResults(id, session.sectionIndex, userId) : null,
+            votingClosed: !!session.votingClosed,
         };
     }
 

@@ -94,6 +94,8 @@ export class WsServer {
                         this.store.startSession(sessionId);
                     } else if (message.type === 'set-emoji-blocked') {
                         this.store.setEmojiBlocked(sessionId, message.blocked);
+                    } else if (message.type === 'close-voting') {
+                        this.store.closeVoting(sessionId);
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });

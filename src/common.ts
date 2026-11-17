@@ -87,6 +87,7 @@ export interface TextQuestion extends BaseQuestion {
     maxLength: number; // 1..1000
     multipleAnswers: boolean; // more than one answer per person
     maxAnswers: number; // 2..42, used when multipleAnswers
+    votable?: boolean; // participants can up/down-vote answers
 }
 
 export interface ChoiceQuestion extends BaseQuestion {
@@ -116,7 +117,7 @@ export function makeQuestion(kind: Question['kind']): Question {
         case 'opposition':
             return { id, kind, title: '', minLabel: 'no', maxLabel: 'yes', defaultValue: 0 };
         case 'text':
-            return { id, kind, title: '', maxLength: 200, multipleAnswers: false, maxAnswers: 5 };
+            return { id, kind, title: '', maxLength: 200, multipleAnswers: false, maxAnswers: 5, votable: false };
         case 'choice':
             return { id, kind, title: '', multipleChoices: false, maxAnswers: 5, choices: ['', ''] };
     }
@@ -160,6 +161,8 @@ export interface PresenterState {
     answerCount: number;
     results: QuestionResult[] | null;
     emojiBlocked: boolean;
+    votingClosed: boolean;
+    hasVotable: boolean;
 }
 
 export interface ParticipantState {
@@ -169,6 +172,7 @@ export interface ParticipantState {
     sectionIndex: number;
     submitted: boolean;
     results: QuestionResult[] | null;
+    votingClosed: boolean;
 }
 
 export interface SummaryState {
@@ -249,7 +253,11 @@ export interface SetEmojiBlockedMessage {
     blocked: boolean;
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage;
+export interface CloseVotingMessage {
+    type: 'close-voting';
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage | CloseVotingMessage;
 
 
 // ---------- validation ----------
@@ -291,6 +299,7 @@ function validateQuestion(raw: any): void {
             if (typeof raw.maxAnswers !== 'number' || !Number.isFinite(raw.maxAnswers) || raw.maxAnswers < 2 || raw.maxAnswers > MAX_MULTIPLE_ANSWERS) {
                 throw new Error('invalid question.maxAnswers');
             }
+            if (raw.votable !== undefined && typeof raw.votable !== 'boolean') throw new Error('invalid question.votable');
             break;
         case 'choice':
             if (typeof raw.multipleChoices !== 'boolean') throw new Error('invalid question.multipleChoices');

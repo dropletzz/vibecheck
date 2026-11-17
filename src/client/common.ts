@@ -315,11 +315,12 @@ function getClusterCount(questionId: string): number {
     return clusterCounts.get(questionId) ?? DEFAULT_CLUSTERS;
 }
 
-export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void): HTMLElement[] {
+export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, canVote?: (question: Question) => boolean): HTMLElement[] {
     return results.map((result, index) => {
         const question = questions[index];
         if (!question) return el('div', {});
-        return renderResultCard(result, question, rerender, onVote);
+        const vote = onVote && (!canVote || canVote(question)) ? onVote : undefined;
+        return renderResultCard(result, question, rerender, vote);
     });
 }
 

@@ -300,11 +300,14 @@ function renderSectionEditor(section: Section, sectionIndex: number): HTMLElemen
     });
 
     const questionsBox = el('div', {});
-    questionsBox.append(insertQuestionButton(sectionIndex, 0));
-    section.questions.forEach((question, questionIndex) => {
-        questionsBox.append(renderQuestionEditor(question, sectionIndex, questionIndex));
-        questionsBox.append(insertQuestionButton(sectionIndex, questionIndex + 1));
-    });
+    const renderQuestions = () => {
+        questionsBox.replaceChildren(insertQuestionButton(sectionIndex, 0));
+        section.questions.forEach((question, questionIndex) => {
+            questionsBox.append(renderQuestionEditor(question, sectionIndex, questionIndex));
+            questionsBox.append(insertQuestionButton(sectionIndex, questionIndex + 1));
+        });
+    };
+    renderQuestions();
 
     return el('div', { class: 'card', 'data-section-index': sectionIndex },
         el('div', { class: 'section-header' },
@@ -322,7 +325,13 @@ function renderSectionEditor(section: Section, sectionIndex: number): HTMLElemen
                 checked: section.showResults || null,
                 onchange: (event) => {
                     section.showResults = (event.target as HTMLInputElement).checked;
+                    if (!section.showResults) {
+                        for (const question of section.questions) {
+                            if (question.kind === 'text') question.votable = false;
+                        }
+                    }
                     saveModels(models);
+                    renderQuestions();
                 },
             }),
             el('span', {}, 'i partecipanti vedono i risultati'),
@@ -389,6 +398,7 @@ function moveQuestion(sectionIndex: number, questionIndex: number, delta: number
 
 function renderQuestionEditor(question: Question, sectionIndex: number, questionIndex: number): HTMLElement {
     const box = el('div', { class: 'question-editor ' + question.kind, 'data-question-id': question.id });
+    const section = currentVibecheck().sections[sectionIndex];
 
     const titleInput = el('input', {
         type: 'text',
@@ -408,12 +418,12 @@ function renderQuestionEditor(question: Question, sectionIndex: number, question
             el('button', { class: 'small danger', title: 'elimina domanda', onclick: () => removeQuestion(sectionIndex, questionIndex) }, '✕'),
         ),
         titleInput,
-        renderQuestionFields(question),
+        renderQuestionFields(question, !!section.showResults),
     );
     return box;
 }
 
-function renderQuestionFields(question: Question): HTMLElement {
+function renderQuestionFields(question: Question, showResults: boolean): HTMLElement {
     switch (question.kind) {
         case 'dimension':
         case 'opposition': {
@@ -444,13 +454,13 @@ function renderQuestionFields(question: Question): HTMLElement {
             );
         }
         case 'text':
-            return renderTextFields(question);
+            return renderTextFields(question, showResults);
         case 'choice':
             return renderChoiceFields(question);
     }
 }
 
-function renderTextFields(question: TextQuestion): HTMLElement {
+function renderTextFields(question: TextQuestion, showResults: boolean): HTMLElement {
     const lengthLabel = el('label', {}, 'lunghezza massima: ' + question.maxLength + ' caratteri');
     const range = makeSlider({
         value: question.maxLength,
@@ -489,9 +499,20 @@ function renderTextFields(question: TextQuestion): HTMLElement {
         },
     });
 
+    const votableCheckbox = el('input', {
+        type: 'checkbox',
+        checked: question.votable || null,
+        disabled: !showResults || null,
+        onchange: (event: Event) => {
+            question.votable = (event.target as HTMLInputElement).checked;
+            saveModels(models);
+        },
+    });
+
     return el('div', {},
         lengthLabel,
         range,
+        el('label', { class: 'check-row' }, votableCheckbox, el('span', {}, 'i partecipanti votano le risposte')),
         el('label', { class: 'check-row' }, multipleCheckbox, el('span', {}, 'più risposte per persona')),
         maxAnswersBox,
     );
