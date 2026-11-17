@@ -4,7 +4,7 @@ import { el } from './common';
 
 export function spawnEmoji(emoji: string) {
     if (emoji === '💣') { spawnBomb(); return; }
-    if (emoji === '🫧') { spawnBubbleEmoji(); return; }
+    if (emoji === '✨') { spawnSparkles(); return; }
     if (emoji === '🌸') { spawnFlower(); return; }
     if (emoji === '💩') { spawnPoop(); return; }
     if (emoji === '💧') { spawnWater(); return; }
@@ -64,26 +64,23 @@ function spawnBomb() {
     };
 }
 
-function spawnBubbleEmoji() {
-    const bubble = el('span', { class: 'emoji-fly' }, '🫧');
-    bubble.style.left = (10 + Math.random() * 80) + '%';
-    bubble.style.top = (10 + Math.random() * 70) + '%';
-    getEmojiLayer().append(bubble);
+function spawnSparkles() {
+    const span = el('span', { class: 'emoji-fly' }, '✨');
+    span.style.left = (5 + Math.random() * 90) + '%';
+    span.style.top = (10 + Math.random() * 70) + '%';
+    getEmojiLayer().append(span);
 
-    const fromSide = (Math.random() < 0.5 ? -1 : 1) * (window.innerWidth * 0.5 + 100);
-    const x = () => (Math.random() - 0.5) * 240;
-    bubble.animate(
+    const spin = (Math.random() < 0.5 ? -1 : 1) * (40 + Math.random() * 80);
+    span.animate(
         [
-            { transform: `translateX(${fromSide}px) translateY(0) scale(0.6)`, opacity: 0, easing: 'ease-out' },
-            { transform: 'translateX(0) translateY(0) scale(1)', opacity: 1, offset: 0.15 },
-            { transform: `translateX(${x()}px) translateY(-50px) scale(1)`, opacity: 1, offset: 0.35 },
-            { transform: `translateX(${x()}px) translateY(-100px) scale(1)`, opacity: 1, offset: 0.55 },
-            { transform: `translateX(${x()}px) translateY(-150px) scale(1)`, opacity: 1, offset: 0.75 },
-            { transform: `translateX(${x()}px) translateY(-150px) scale(1.3)`, opacity: 0.6, offset: 0.88 },
-            { transform: `translateX(${x()}px) translateY(-150px) scale(0)`, opacity: 0 },
+            { transform: 'scale(0) rotate(0deg)', opacity: 0 },
+            { transform: `scale(1.4) rotate(${spin}deg)`, opacity: 1, offset: 0.25 },
+            { transform: `scale(0.9) rotate(${spin * 1.5}deg)`, opacity: 0.8, offset: 0.5 },
+            { transform: `scale(1.2) rotate(${spin * 2}deg)`, opacity: 1, offset: 0.7 },
+            { transform: 'scale(0) rotate(0deg)', opacity: 0 },
         ],
-        { duration: 3400 },
-    ).onfinish = () => bubble.remove();
+        { duration: 2400, easing: 'ease-in-out' },
+    ).onfinish = () => span.remove();
 }
 
 function spawnFlower() {

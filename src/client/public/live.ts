@@ -146,7 +146,7 @@ function ensureEmojiUi() {
 
     const pairs = [
         ['🌸', '💩'],
-        ['💣', '🫧'],
+        ['💣', '✨'],
         ['🔥', '💧'],
         ['👍', '👎'],
         ['😛', '🤔'],
@@ -158,7 +158,7 @@ function ensureEmojiUi() {
         if (emojiFab) emojiFab.classList.toggle('active', open);
     };
 
-    emojiFab = el('span', { class: 'emoji-fab', onclick: () => toggleDropup(!(emojiDropup?.classList.contains('open'))) }, '😀');
+    emojiFab = el('span', { class: 'emoji-fab', onclick: () => toggleDropup(!(emojiDropup?.classList.contains('open'))) }, '🙂');
     emojiDropup = el('div', { class: 'emoji-dropup' });
 
     for (const pair of pairs) {
