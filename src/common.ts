@@ -159,6 +159,7 @@ export interface PresenterState {
     participantCount: number;
     answerCount: number;
     results: QuestionResult[] | null;
+    emojiBlocked: boolean;
 }
 
 export interface ParticipantState {
@@ -243,7 +244,12 @@ export interface EmojiMessage {
     emoji: string;
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage;
+export interface SetEmojiBlockedMessage {
+    type: 'set-emoji-blocked';
+    blocked: boolean;
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage;
 
 
 // ---------- validation ----------

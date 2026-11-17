@@ -23,6 +23,7 @@ interface Session {
     vibecheck: VibecheckModel;
     sectionIndex: number;
     started?: boolean;
+    emojiBlocked?: boolean;
     closedSections: number[];
     participants: Record<UserId, true>;
     submittedBySection: Record<string, Record<UserId, true>>; // section index -> userId -> true
@@ -132,6 +133,7 @@ export class Store {
             vibecheck,
             sectionIndex: 0,
             started: false,
+            emojiBlocked: false,
             closedSections: [],
             participants: {},
             submittedBySection: {},
@@ -182,6 +184,17 @@ export class Store {
         if (!session) return;
         session.started = true;
         session.sectionIndex = 0;
+    }
+
+    setEmojiBlocked(id: SessionId, blocked: boolean) {
+        const session = this.sessions[id];
+        if (!session) return;
+        session.emojiBlocked = blocked;
+    }
+
+    emojisBlocked(id: SessionId): boolean {
+        const session = this.sessions[id];
+        return !!session && !!session.emojiBlocked;
     }
 
     closeSection(id: SessionId) {
@@ -290,6 +303,7 @@ export class Store {
             participantCount: Object.keys(session.participants).length,
             answerCount: lobby ? 0 : this.answerCount(id),
             results: phase === 'results' ? this.computeResults(id, session.sectionIndex) : null,
+            emojiBlocked: !!session.emojiBlocked,
         };
     }
 

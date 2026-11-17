@@ -78,6 +78,9 @@ const client = new PersistentWS({
 });
 
 function render() {
+    ensureEmojiUi();
+    updateEmojiUiVisibility();
+
     if (terminated) {
         document.body.replaceChildren(renderEnd('il vibecheck è terminato, grazie per aver partecipato'));
         return;
@@ -135,7 +138,12 @@ function sendEmoji(emoji: string) {
     client.send({ type: 'emoji', emoji });
 }
 
-function renderLobby(): HTMLElement {
+let emojiFab: HTMLElement | null = null;
+let emojiDropup: HTMLElement | null = null;
+
+function ensureEmojiUi() {
+    if (emojiFab && emojiDropup) return;
+
     const pairs = [
         ['🌸', '💩'],
         ['💣', '🫧'],
@@ -145,16 +153,13 @@ function renderLobby(): HTMLElement {
         ['🙂', '🙃'],
     ];
 
-    let fab: HTMLElement;
-    let dropup: HTMLElement;
-
     const toggleDropup = (open: boolean) => {
-        dropup.classList.toggle('open', open);
-        fab.classList.toggle('active', open);
+        if (emojiDropup) emojiDropup.classList.toggle('open', open);
+        if (emojiFab) emojiFab.classList.toggle('active', open);
     };
 
-    fab = el('span', { class: 'emoji-fab', onclick: () => toggleDropup(!dropup.classList.contains('open')) }, '😀');
-    dropup = el('div', { class: 'emoji-dropup' });
+    emojiFab = el('span', { class: 'emoji-fab', onclick: () => toggleDropup(!(emojiDropup?.classList.contains('open'))) }, '😀');
+    emojiDropup = el('div', { class: 'emoji-dropup' });
 
     for (const pair of pairs) {
         const row = el('div', { class: 'emoji-pair' });
@@ -167,14 +172,25 @@ function renderLobby(): HTMLElement {
                 },
             }, emoji));
         }
-        dropup.append(row);
+        emojiDropup.append(row);
     }
 
+    document.documentElement.append(emojiFab, emojiDropup);
+}
+
+function updateEmojiUiVisibility() {
+    const visible = !terminated;
+    if (emojiFab) emojiFab.style.display = visible ? '' : 'none';
+    if (emojiDropup) {
+        emojiDropup.style.display = visible ? '' : 'none';
+        if (!visible) emojiDropup.classList.remove('open');
+    }
+}
+
+function renderLobby(): HTMLElement {
     return el('main', { class: 'lobby' },
         el('h1', {}, state.name || 'partecipa'),
         el('p', { class: 'empty' }, 'attendiamo che il vibecheck inizi...'),
-        fab,
-        dropup,
     );
 }
 

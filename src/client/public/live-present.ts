@@ -207,6 +207,15 @@ function renderPresenter(): HTMLElement {
         ),
     );
 
+    children.push(el('label', { class: 'check-row' },
+        el('input', {
+            type: 'checkbox',
+            checked: state.emojiBlocked || null,
+            onchange: (event) => send({ type: 'set-emoji-blocked', blocked: (event.target as HTMLInputElement).checked }),
+        }),
+        el('span', {}, 'blocca emoji'),
+    ));
+
     if (state.phase === 'results') {
         children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [], render)));
     } else {
@@ -322,6 +331,14 @@ function renderLobbyView(): HTMLElement {
             linkInput,
             el('button', { onclick: copyLink }, 'copia'),
             el('button', { onclick: () => { showQr = true; render(); } }, 'mostra qr'),
+        ),
+        el('label', { class: 'check-row' },
+            el('input', {
+                type: 'checkbox',
+                checked: state.emojiBlocked || null,
+                onchange: (event) => send({ type: 'set-emoji-blocked', blocked: (event.target as HTMLInputElement).checked }),
+            }),
+            el('span', {}, 'blocca emoji'),
         ),
         el('button', { class: 'big', onclick: () => send({ type: 'start' }) }, 'inizia'),
     );

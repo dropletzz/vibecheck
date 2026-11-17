@@ -37,6 +37,7 @@ export class WsServer {
     }
 
     private sendEmoji(sessionId: SessionId, emoji: string) {
+        if (this.store.emojisBlocked(sessionId)) return;
         const ws = this.presenterSockets.get(sessionId);
         if (!ws) return;
         this.send(ws, { type: 'emoji', emoji: emoji.slice(0, 8) });
@@ -91,6 +92,8 @@ export class WsServer {
                         this.store.closeSection(sessionId);
                     } else if (message.type === 'start') {
                         this.store.startSession(sessionId);
+                    } else if (message.type === 'set-emoji-blocked') {
+                        this.store.setEmojiBlocked(sessionId, message.blocked);
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });
