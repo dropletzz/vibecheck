@@ -273,6 +273,25 @@ input[type='range'].result-slider {
     flex-direction: column;
     gap: 8px;
 }
+.text-order {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.text-order button.active {
+    transform: translate(
+        calc(var(--btn-depth) - var(--btn-depth-pressed)),
+        calc(var(--btn-depth) - var(--btn-depth-pressed))
+    );
+}
+.text-order button.active::before {
+    bottom: calc(-1 * var(--btn-depth-pressed));
+    height: var(--btn-depth-pressed);
+}
+.text-order button.active::after {
+    right: calc(-1 * var(--btn-depth-pressed));
+    width: var(--btn-depth-pressed);
+}
 .answer-box {
     --vote-height: 60px;
     --vote-margin: 10px;

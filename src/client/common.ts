@@ -302,6 +302,7 @@ const MAX_CLUSTERS = 10;
 const HISTOGRAM_RATIO = 4 / 3;
 const SCATTER_RATIO = 3 / 1;
 const detailedQuestions = new Set<string>();
+const textOrdering = new Map<string, 'count' | 'vote'>();
 const densityBars = new Map<string, number>();
 const clusterCounts = new Map<string, number>();
 const numericPlotType = new Map<string, number>(); // 0 = scatter, 1 = discrete density, 2 = continuous density
@@ -313,6 +314,10 @@ function getDensityBars(questionId: string): number {
 
 function getClusterCount(questionId: string): number {
     return clusterCounts.get(questionId) ?? DEFAULT_CLUSTERS;
+}
+
+function getTextOrdering(questionId: string): 'count' | 'vote' | null {
+    return textOrdering.get(questionId) ?? null;
 }
 
 export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, canVote?: (question: Question) => boolean): HTMLElement[] {
@@ -327,7 +332,6 @@ export function renderResults(results: QuestionResult[], questions: Question[], 
 function renderResultCard(result: QuestionResult, question: Question, rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void): HTMLElement {
     const isNumeric = result.kind === 'dimension' || result.kind === 'opposition';
     const isText = result.kind === 'text';
-    const alwaysDetailed = !!onVote && isText;
 
     const header = el('div', { class: 'result-header' });
     if (question.title) header.append(el('h2', {}, question.title));
@@ -339,45 +343,27 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
                 el('button', { class: 'small', title: 'grafico successivo', onclick: () => cycleNumericPlot(question.id, 1, rerender) }, '→'),
             ),
         );
-    } else {
-        const detailed = alwaysDetailed || detailedQuestions.has(question.id);
-        const toggle = getToggleLabels(result);
-        if (toggle && !alwaysDetailed) {
-            header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, detailed ? toggle.close : toggle.open));
+    } else if (isText) {
+        const expanded = detailedQuestions.has(question.id);
+        if ((result as TextResult).answers.length > 0) {
+            header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, expanded ? 'nascondi' : 'mostra'));
         }
+    } else {
+        const detailed = detailedQuestions.has(question.id);
+        header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, detailed ? 'riepilogo' : 'dettaglio'));
     }
 
     const card = el('div', { class: 'card' }, header);
     if (isNumeric) {
         card.append(renderNumericPlot(result as SliderResult, question, rerender));
-    } else {
+    } else if (isText) {
         const vote = onVote ? (text: string, direction: 1 | -1) => onVote(question.id, text, direction) : undefined;
-        const detailed = alwaysDetailed || detailedQuestions.has(question.id);
-        card.append(detailed ? renderDetailed(result, question, vote, question.id) : renderSummary(result, question, vote, question.id));
+        card.append(renderTextResult(result as TextResult, question, vote, question.id, rerender));
+    } else {
+        const detailed = detailedQuestions.has(question.id);
+        card.append(detailed ? renderChoiceDetailed(result as ChoiceResult, question) : renderChoiceSummary(result as ChoiceResult, question));
     }
     return card;
-}
-
-function getToggleLabels(result: QuestionResult): { open: string; close: string } | null {
-    if (result.kind === 'text') {
-        return groupAnswers(result.answers).length > 3 ? { open: 'espandi', close: 'riduci' } : null;
-    }
-    if (result.kind === 'choice') {
-        return { open: 'dettaglio', close: 'riepilogo' };
-    }
-    return null;
-}
-
-function renderSummary(result: QuestionResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
-    if (result.kind === 'choice') return renderChoiceSummary(result, question);
-    if (result.kind === 'text') return renderTextSummary(result, onVote, questionId);
-    return el('div', {});
-}
-
-function renderDetailed(result: QuestionResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
-    if (result.kind === 'choice') return renderChoiceDetailed(result, question);
-    if (result.kind === 'text') return renderTextDetailed(result, onVote, questionId);
-    return el('div', {});
 }
 
 function createResultCanvas(aspectRatio: number, draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void): HTMLCanvasElement {
@@ -502,18 +488,40 @@ function toggleDetailed(questionId: string, rerender: () => void) {
     rerender();
 }
 
-function renderTextSummary(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
-    const groups = onVote ? groupTextAnswersInOrder(result) : groupTextAnswers(result);
+function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void): HTMLElement {
+    const groups = groupTextAnswers(result);
     if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
-    const nodes = renderTextBoxes(groups.slice(0, 3), onVote, questionId);
-    if (groups.length > 3) nodes.push(el('div', { class: 'muted' }, '...'));
-    return el('div', { class: 'text-results' }, ...nodes);
-}
 
-function renderTextDetailed(result: TextResult, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement {
-    const groups = onVote ? groupTextAnswersInOrder(result) : groupTextAnswers(result);
-    if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
-    return el('div', { class: 'text-results detailed' }, ...renderTextBoxes(groups, onVote, questionId));
+    const id = questionId ?? '';
+    if (!detailedQuestions.has(id)) return el('div', {});
+
+    const mode = getTextOrdering(id);
+    const ordered = mode ? orderTextGroups(groups, mode) : groups;
+    const votable = question.kind === 'text' && !!question.votable;
+
+    const toggleOrder = (next: 'count' | 'vote') => {
+        if (textOrdering.get(id) === next) textOrdering.delete(id);
+        else textOrdering.set(id, next);
+        if (rerender) rerender();
+    };
+
+    const orderButtons = el('div', { class: 'text-order' },
+        el('button', {
+            class: 'small' + (mode === 'count' ? ' active' : ''),
+            onclick: () => toggleOrder('count'),
+        }, 'per conteggio'),
+    );
+    if (votable) {
+        orderButtons.append(el('button', {
+            class: 'small' + (mode === 'vote' ? ' active' : ''),
+            onclick: () => toggleOrder('vote'),
+        }, 'per voti'));
+    }
+
+    return el('div', { class: 'text-results detailed' },
+        orderButtons,
+        ...renderTextBoxes(ordered, onVote, questionId),
+    );
 }
 
 function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement[] {
@@ -538,16 +546,6 @@ function renderTextBoxes(groups: { text: string; count: number; score: number; m
 }
 
 function groupTextAnswers(result: TextResult): { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[] {
-    return groupAnswers(result.answers)
-        .map((group) => ({
-            ...group,
-            score: result.scores[group.text] || 0,
-            myVote: result.myVotes[group.text],
-        }))
-        .sort((a, b) => b.score - a.score || b.count - a.count);
-}
-
-function groupTextAnswersInOrder(result: TextResult): { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[] {
     const counts = new Map<string, number>();
     for (const answer of result.answers) {
         counts.set(answer, (counts.get(answer) || 0) + 1);
@@ -560,14 +558,11 @@ function groupTextAnswersInOrder(result: TextResult): { text: string; count: num
     }));
 }
 
-function groupAnswers(answers: string[]): { text: string; count: number }[] {
-    const counts = new Map<string, number>();
-    for (const answer of answers) {
-        counts.set(answer, (counts.get(answer) || 0) + 1);
+function orderTextGroups(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], mode: 'count' | 'vote') {
+    if (mode === 'vote') {
+        return groups.sort((a, b) => b.score - a.score || b.count - a.count || a.text.localeCompare(b.text));
     }
-    return Array.from(counts.entries())
-        .map(([text, count]) => ({ text, count }))
-        .sort((a, b) => b.count - a.count);
+    return groups.sort((a, b) => b.count - a.count || a.text.localeCompare(b.text));
 }
 
 function orderedChoiceEntries(result: ChoiceResult, question: Question): [string, number][] {
