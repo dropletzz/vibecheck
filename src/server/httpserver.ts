@@ -142,6 +142,10 @@ export class HTTPServer {
             return;
         }
 
+        if (req.method === 'GET' && parsedUrl.pathname === '/api/boom') {
+            process.exit(1);
+        }
+
         if (req.method === 'GET' && parsedUrl.pathname === '/live.html') {
             const cookies = this.parseCookies(req);
             if (!cookies.userId) {
