@@ -136,6 +136,12 @@ export class HTTPServer {
             return;
         }
 
+        if (req.method === 'GET' && parsedUrl.pathname === '/api/status') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(this.store.getStatus()));
+            return;
+        }
+
         if (req.method === 'GET' && parsedUrl.pathname === '/live.html') {
             const cookies = this.parseCookies(req);
             if (!cookies.userId) {

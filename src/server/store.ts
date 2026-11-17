@@ -307,6 +307,14 @@ export class Store {
         };
     }
 
+    getStatus(): { sessions: number; participants: number } {
+        let participants = 0;
+        for (const session of Object.values(this.sessions)) {
+            participants += Object.keys(session.participants).length;
+        }
+        return { sessions: Object.keys(this.sessions).length, participants };
+    }
+
     getParticipantState(id: SessionId, userId: UserId): ParticipantState | null {
         const session = this.sessions[id];
         if (!session) return null;
