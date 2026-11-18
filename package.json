@@ -4,7 +4,7 @@
   "description": "",
   "main": "node server.js",
   "scripts": {
-    "build:client": "node build-client.js",
+    "build:client": "node scripts/build-client.js",
     "build:server": "tsc",
     "build": "npm run build:client && npm run build:server",
     "start": "node build/server/index.js",
