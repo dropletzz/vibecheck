@@ -3,6 +3,7 @@
 import { el } from './common';
 
 export function spawnEmoji(emoji: string) {
+    if (document.hidden) return;
     if (emoji === '💣') { spawnBomb(); return; }
     if (emoji === '✨') { spawnSparkles(); return; }
     if (emoji === '🌸') { spawnFlower(); return; }
