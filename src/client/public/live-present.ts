@@ -13,6 +13,7 @@ let terminated = false;
 let showQuestions = false;
 let showQr = false;
 let summaryState: SummaryState | null = null;
+let renderScheduled = false;
 
 let reconnectOverlay: HTMLElement | null = null;
 
@@ -35,7 +36,7 @@ const client = new PersistentWS({
     onMessage(message) {
         if (message.type === 'state') {
             state = message.state;
-            render();
+            scheduleRender();
         } else if (message.type === 'terminated') {
             terminated = true;
             showQuestions = false;
@@ -112,6 +113,15 @@ function animateAnswerBoxes(previous: Map<string, DOMRect>) {
             ],
             { duration: 350, easing: 'ease-out' },
         );
+    });
+}
+
+function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+        renderScheduled = false;
+        render();
     });
 }
 

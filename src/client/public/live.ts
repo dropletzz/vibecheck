@@ -12,6 +12,7 @@ let terminated = false;
 let questionBoxes: HTMLElement[] = [];
 let myAnswers: Record<string, any[]> = {};
 let lastSectionIndex: number | null = null;
+let renderScheduled = false;
 
 function goHome() {
     window.location.href = '/';
@@ -60,7 +61,7 @@ const client = new PersistentWS({
                 lastSectionIndex = state.sectionIndex;
                 myAnswers = loadAnswers(state.sectionIndex);
             }
-            render();
+            scheduleRender();
         } else if (message.type === 'terminated') {
             terminated = true;
             render();
@@ -76,6 +77,15 @@ const client = new PersistentWS({
         }
     },
 });
+
+function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+        renderScheduled = false;
+        render();
+    });
+}
 
 function render() {
     ensureEmojiUi();
