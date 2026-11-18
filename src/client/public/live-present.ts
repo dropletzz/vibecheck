@@ -1,5 +1,5 @@
 import { el, elLoading, renderQuestion, renderResults } from '../common';
-import { ClientMessage, Nonce, PresenterState, SessionId, SummaryState } from '../../common';
+import { ClientMessage, Nonce, PresenterState, SessionId, SummaryState, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 import { renderQrCode } from '../qrcode';
 import { spawnEmoji } from '../animations';
@@ -13,7 +13,6 @@ let terminated = false;
 let showQuestions = false;
 let showQr = false;
 let summaryState: SummaryState | null = null;
-let renderScheduled = false;
 
 let reconnectOverlay: HTMLElement | null = null;
 
@@ -116,15 +115,6 @@ function animateAnswerBoxes(previous: Map<string, DOMRect>) {
     });
 }
 
-function scheduleRender() {
-    if (renderScheduled) return;
-    renderScheduled = true;
-    requestAnimationFrame(() => {
-        renderScheduled = false;
-        render();
-    });
-}
-
 function render() {
     const prev = snapshotAnswerBoxes();
 
@@ -150,6 +140,8 @@ function render() {
     if (showQr) document.body.append(renderQrModal());
     animateAnswerBoxes(prev);
 }
+
+const scheduleRender = throttle(() => render(), 500, true);
 
 function closeSummary() {
     summaryState = null;

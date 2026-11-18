@@ -12,7 +12,6 @@ let terminated = false;
 let questionBoxes: HTMLElement[] = [];
 let myAnswers: Record<string, any[]> = {};
 let lastSectionIndex: number | null = null;
-let renderScheduled = false;
 
 function goHome() {
     window.location.href = '/';
@@ -78,15 +77,6 @@ const client = new PersistentWS({
     },
 });
 
-function scheduleRender() {
-    if (renderScheduled) return;
-    renderScheduled = true;
-    requestAnimationFrame(() => {
-        renderScheduled = false;
-        render();
-    });
-}
-
 function render() {
     ensureEmojiUi();
     updateEmojiUiVisibility();
@@ -101,6 +91,8 @@ function render() {
     }
     document.body.replaceChildren(renderParticipant());
 }
+
+const scheduleRender = throttle(() => render(), 500, true);
 
 function renderParticipant(): HTMLElement {
     if (state.phase === 'lobby') {

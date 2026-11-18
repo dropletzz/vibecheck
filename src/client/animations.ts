@@ -16,7 +16,7 @@ function getEmojiLayer(): HTMLElement {
     let layer = document.querySelector('.emoji-layer') as HTMLElement | null;
     if (!layer) {
         layer = el('div', { class: 'emoji-layer' });
-        document.body.append(layer);
+        document.documentElement.append(layer);
     }
     return layer;
 }
