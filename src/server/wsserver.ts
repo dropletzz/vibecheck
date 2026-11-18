@@ -2,7 +2,9 @@ import * as http from 'http';
 import * as https from 'https';
 import { WebSocketServer } from 'ws';
 import { Store } from './store';
-import { ClientMessage, FATAL_CLOSE_CODE, Nonce, ServerMessage, SessionId, UserId, makeId } from '../common';
+import { ClientMessage, FATAL_CLOSE_CODE, Nonce, ServerMessage, SessionId, UserId, makeId, throttle } from '../common';
+
+const STATE_BROADCAST_MS = 150;
 
 interface WsServerConfig {
     server: http.Server | https.Server;
@@ -14,6 +16,8 @@ export class WsServer {
     private wss: WebSocketServer;
     private presenterSockets = new Map<string, any>();
     private participantSockets = new Map<string, Map<string, any>>();
+    private presenterThrottles = new Map<string, () => void>();
+    private participantThrottles = new Map<string, () => void>();
 
     constructor(config: WsServerConfig) {
         this.store = config.store;
@@ -36,6 +40,24 @@ export class WsServer {
         if (state) this.send(ws, { type: 'state', state });
     }
 
+    private schedulePresenterState(sessionId: SessionId) {
+        let fn = this.presenterThrottles.get(sessionId);
+        if (!fn) {
+            fn = throttle(() => this.sendPresenterState(sessionId), STATE_BROADCAST_MS);
+            this.presenterThrottles.set(sessionId, fn);
+        }
+        fn();
+    }
+
+    private scheduleBroadcastParticipants(sessionId: SessionId) {
+        let fn = this.participantThrottles.get(sessionId);
+        if (!fn) {
+            fn = throttle(() => this.broadcastParticipants(sessionId), STATE_BROADCAST_MS);
+            this.participantThrottles.set(sessionId, fn);
+        }
+        fn();
+    }
+
     private sendEmoji(sessionId: SessionId, emoji: string) {
         if (this.store.emojisBlocked(sessionId)) return;
         const ws = this.presenterSockets.get(sessionId);
@@ -46,10 +68,15 @@ export class WsServer {
     private broadcastParticipants(sessionId: SessionId) {
         const sockets = this.participantSockets.get(sessionId);
         if (!sockets) return;
+        const session = this.store.getSession(sessionId);
+        if (!session) return;
+        const section = session.vibecheck.sections[session.sectionIndex];
+        const showResults = this.store.phase(sessionId) === 'results' && !!section && !!section.showResults;
+        const baseResults = showResults ? this.store.computeResults(sessionId, session.sectionIndex) : undefined;
         for (const userId of this.store.getParticipantIds(sessionId)) {
             const ws = sockets.get(userId);
             if (!ws) continue;
-            const state = this.store.getParticipantState(sessionId, userId);
+            const state = this.store.getParticipantState(sessionId, userId, baseResults);
             if (state) this.send(ws, { type: 'participant-state', state });
         }
     }
@@ -111,6 +138,8 @@ export class WsServer {
                         this.send(ws, { type: 'terminated' });
                         this.presenterSockets.delete(sessionId);
                         this.participantSockets.delete(sessionId);
+                        this.presenterThrottles.delete(sessionId);
+                        this.participantThrottles.delete(sessionId);
                         return;
                     }
                     this.sendPresenterState(sessionId);
@@ -139,11 +168,13 @@ export class WsServer {
                         this.store.submitAnswers(sessionId, userId, message.answers || {});
                         const state = this.store.getParticipantState(sessionId, userId);
                         if (state) this.send(ws, { type: 'participant-state', state });
-                        this.sendPresenterState(sessionId);
+                        this.schedulePresenterState(sessionId);
                     } else if (message.type === 'vote') {
                         this.store.vote(sessionId, userId, message.questionId, message.text, message.direction);
-                        this.broadcastParticipants(sessionId);
-                        this.sendPresenterState(sessionId);
+                        const state = this.store.getParticipantState(sessionId, userId);
+                        if (state) this.send(ws, { type: 'participant-state', state });
+                        this.scheduleBroadcastParticipants(sessionId);
+                        this.schedulePresenterState(sessionId);
                     } else if (message.type === 'emoji') {
                         this.sendEmoji(sessionId, message.emoji);
                     }

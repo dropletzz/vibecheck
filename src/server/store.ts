@@ -223,7 +223,7 @@ export class Store {
         }
     }
 
-    private phase(id: SessionId): 'lobby' | 'answering' | 'results' {
+    phase(id: SessionId): 'lobby' | 'answering' | 'results' {
         const session = this.sessions[id];
         if (!session) return 'answering';
         if (session.started === false) return 'lobby';
@@ -341,7 +341,7 @@ export class Store {
         return { sessions: Object.keys(this.sessions).length, participants };
     }
 
-    getParticipantState(id: SessionId, userId: UserId): ParticipantState | null {
+    getParticipantState(id: SessionId, userId: UserId, baseResults?: QuestionResult[]): ParticipantState | null {
         const session = this.sessions[id];
         if (!session) return null;
         const phase = this.phase(id);
@@ -358,13 +358,18 @@ export class Store {
         }
         const section = session.vibecheck.sections[session.sectionIndex];
         const showResults = phase === 'results' && !!section.showResults;
+        let results: QuestionResult[] | null = null;
+        if (showResults) {
+            const base = baseResults ?? this.computeResults(id, session.sectionIndex);
+            results = this.withMyVotes(id, session.sectionIndex, userId, base);
+        }
         return {
             phase,
             name: session.vibecheck.name,
             section: phase === 'answering' || showResults ? section : null,
             sectionIndex: session.sectionIndex,
             submitted: this.isSubmitted(id, userId),
-            results: showResults ? this.computeResults(id, session.sectionIndex, userId) : null,
+            results,
             votingClosed: !!session.votingClosed,
         };
     }
@@ -420,7 +425,7 @@ export class Store {
         return !!submitters && Object.hasOwn(submitters, userId);
     }
 
-    computeResults(id: SessionId, sectionIndex: number, userId?: UserId): QuestionResult[] {
+    computeResults(id: SessionId, sectionIndex: number): QuestionResult[] {
         const session = this.sessions[id];
         if (!session) return [];
         const section = session.vibecheck.sections[sectionIndex];
@@ -457,7 +462,6 @@ export class Store {
             } else {
                 const textAnswers = answers.filter((a): a is string => typeof a === 'string');
                 const scores: Record<string, number> = {};
-                const myVotes: Record<string, 1 | -1> = {};
                 const questionVotes = this.votesOf(id)[String(sectionIndex)]?.[question.id];
                 if (questionVotes) {
                     for (const [text, users] of Object.entries(questionVotes)) {
@@ -467,12 +471,31 @@ export class Store {
                             else score--;
                         }
                         scores[text] = score;
-                        if (userId && users[userId] !== undefined) myVotes[text] = users[userId];
                     }
                 }
-                results.push({ kind: 'text', answers: textAnswers, scores, myVotes });
+                results.push({ kind: 'text', answers: textAnswers, scores, myVotes: {} });
             }
         }
         return results;
+    }
+
+    private withMyVotes(id: SessionId, sectionIndex: number, userId: UserId, base: QuestionResult[]): QuestionResult[] {
+        const session = this.sessions[id];
+        if (!session) return base;
+        const section = session.vibecheck.sections[sectionIndex];
+        if (!section) return base;
+        const sectionVotes = this.votesOf(id)[String(sectionIndex)];
+        return base.map((result, index) => {
+            if (result.kind !== 'text') return result;
+            const question = section.questions[index];
+            const myVotes: Record<string, 1 | -1> = {};
+            const questionVotes = question && sectionVotes ? sectionVotes[question.id] : undefined;
+            if (questionVotes) {
+                for (const [text, users] of Object.entries(questionVotes)) {
+                    if (users[userId] !== undefined) myVotes[text] = users[userId];
+                }
+            }
+            return { ...result, myVotes };
+        });
     }
 }
