@@ -141,7 +141,7 @@ function render() {
     animateAnswerBoxes(prev);
 }
 
-const scheduleRender = throttle(() => render(), 500, true);
+const scheduleRender = throttle(() => render(), 500);
 
 function closeSummary() {
     summaryState = null;

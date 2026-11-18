@@ -2,8 +2,7 @@
 // close code the server sends for permanent errors (unknown session, invalid nonce)
 export const FATAL_CLOSE_CODE = 4001;
 
-// TODO throttle and debounce seem a bit sloppish, see if we can make them simpler
-export function throttle(fn: (...args: any[]) => void, waitMs: number, trailing: boolean = true): (...args: any[]) => void {
+export function throttle(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
     let last = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     return (...args: any[]) => {
@@ -16,7 +15,7 @@ export function throttle(fn: (...args: any[]) => void, waitMs: number, trailing:
             }
             last = now;
             fn(...args);
-        } else if (!timer && trailing) {
+        } else if (!timer) { // trailing call
             timer = setTimeout(() => {
                 last = Date.now();
                 timer = null;

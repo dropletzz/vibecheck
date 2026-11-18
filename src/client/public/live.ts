@@ -92,7 +92,7 @@ function render() {
     document.body.replaceChildren(renderParticipant());
 }
 
-const scheduleRender = throttle(() => render(), 500, true);
+const scheduleRender = throttle(() => render(), 500);
 
 function renderParticipant(): HTMLElement {
     if (state.phase === 'lobby') {
