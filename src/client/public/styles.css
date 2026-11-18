@@ -63,6 +63,7 @@ h2 { font-size: 1.4rem; margin: 0 0 12px; }
 .counters { display: flex; gap: 16px; margin: 12px 0; }
 .counter { font-size: 1.1rem; margin: 0; }
 .nav-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }
+.nav-spacer { flex: 1; }
 main.presenter { display: flex; flex-direction: column; min-height: 100vh; }
 main.presenter .nav-row { margin-top: auto; padding-top: 24px; }
 
