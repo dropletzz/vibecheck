@@ -320,16 +320,16 @@ function getTextOrdering(questionId: string): 'count' | 'vote' | null {
     return textOrdering.get(questionId) ?? null;
 }
 
-export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, canVote?: (question: Question) => boolean): HTMLElement[] {
+export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, canVote?: (question: Question) => boolean, allowOrdering: boolean = true): HTMLElement[] {
     return results.map((result, index) => {
         const question = questions[index];
         if (!question) return el('div', {});
         const vote = onVote && (!canVote || canVote(question)) ? onVote : undefined;
-        return renderResultCard(result, question, rerender, vote);
+        return renderResultCard(result, question, rerender, vote, allowOrdering);
     });
 }
 
-function renderResultCard(result: QuestionResult, question: Question, rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void): HTMLElement {
+function renderResultCard(result: QuestionResult, question: Question, rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, allowOrdering: boolean = true): HTMLElement {
     const isNumeric = result.kind === 'dimension' || result.kind === 'opposition';
     const isText = result.kind === 'text';
 
@@ -358,7 +358,7 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         card.append(renderNumericPlot(result as SliderResult, question, rerender));
     } else if (isText) {
         const vote = onVote ? (text: string, direction: 1 | -1) => onVote(question.id, text, direction) : undefined;
-        card.append(renderTextResult(result as TextResult, question, vote, question.id, rerender));
+        card.append(renderTextResult(result as TextResult, question, vote, question.id, rerender, allowOrdering));
     } else {
         const detailed = detailedQuestions.has(question.id);
         card.append(detailed ? renderChoiceDetailed(result as ChoiceResult, question) : renderChoiceSummary(result as ChoiceResult, question));
@@ -488,7 +488,7 @@ function toggleDetailed(questionId: string, rerender: () => void) {
     rerender();
 }
 
-function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void): HTMLElement {
+function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void, allowOrdering: boolean = true): HTMLElement {
     const groups = groupTextAnswers(result);
     if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
 
@@ -499,30 +499,34 @@ function renderTextResult(result: TextResult, question: Question, onVote?: (text
     const ordered = mode ? orderTextGroups(groups, mode) : groups;
     const votable = question.kind === 'text' && !!question.votable;
 
-    const toggleOrder = (next: 'count' | 'vote') => {
-        if (textOrdering.get(id) === next) textOrdering.delete(id);
-        else textOrdering.set(id, next);
-        if (rerender) rerender();
-    };
+    const children: HTMLElement[] = [];
 
-    const orderButtons = el('div', { class: 'text-order' },
-        el('span', {}, 'ordina per '),
-        el('button', {
-            class: 'small' + (mode === 'count' ? ' active' : ''),
-            onclick: () => toggleOrder('count'),
-        }, 'conteggio'),
-    );
-    if (votable) {
-        orderButtons.append(el('button', {
-            class: 'small' + (mode === 'vote' ? ' active' : ''),
-            onclick: () => toggleOrder('vote'),
-        }, 'voto'));
+    if (allowOrdering) {
+        const toggleOrder = (next: 'count' | 'vote') => {
+            if (textOrdering.get(id) === next) textOrdering.delete(id);
+            else textOrdering.set(id, next);
+            if (rerender) rerender();
+        };
+
+        const orderButtons = el('div', { class: 'text-order' },
+            el('span', {}, 'ordina per '),
+            el('button', {
+                class: 'small' + (mode === 'count' ? ' active' : ''),
+                onclick: () => toggleOrder('count'),
+            }, 'conteggio'),
+        );
+        if (votable) {
+            orderButtons.append(el('button', {
+                class: 'small' + (mode === 'vote' ? ' active' : ''),
+                onclick: () => toggleOrder('vote'),
+            }, 'voto'));
+        }
+        children.push(orderButtons);
     }
 
-    return el('div', { class: 'text-results detailed' },
-        orderButtons,
-        ...renderTextBoxes(ordered, onVote, questionId),
-    );
+    children.push(...renderTextBoxes(ordered, onVote, questionId));
+
+    return el('div', { class: 'text-results detailed' }, ...children);
 }
 
 function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement[] {
