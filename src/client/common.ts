@@ -506,16 +506,17 @@ function renderTextResult(result: TextResult, question: Question, onVote?: (text
     };
 
     const orderButtons = el('div', { class: 'text-order' },
+        el('span', {}, 'ordina per '),
         el('button', {
             class: 'small' + (mode === 'count' ? ' active' : ''),
             onclick: () => toggleOrder('count'),
-        }, 'per conteggio'),
+        }, 'conteggio'),
     );
     if (votable) {
         orderButtons.append(el('button', {
             class: 'small' + (mode === 'vote' ? ' active' : ''),
             onclick: () => toggleOrder('vote'),
-        }, 'per voti'));
+        }, 'voto'));
     }
 
     return el('div', { class: 'text-results detailed' },
