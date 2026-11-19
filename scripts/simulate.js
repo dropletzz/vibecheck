@@ -145,11 +145,12 @@ function simulateParticipant(index) {
         submitTimers.set(sectionIndex, timer);
     };
 
-    const castVotes = (state) => {
+    const scheduleVotes = (state) => {
         const section = state.section;
         const results = state.results;
         if (!section || !results) return;
 
+        const targets = [];
         section.questions.forEach((question, questionIndex) => {
             if (question.kind !== 'text' || !question.votable) return;
             const result = results[questionIndex];
@@ -158,13 +159,23 @@ function simulateParticipant(index) {
             const texts = Array.from(new Set(result.answers || []));
             if (texts.length === 0) return;
 
-            const n = Math.min(texts.length, 1 + Math.floor(Math.random() * 3));
+            const n = Math.min(texts.length, 1 + Math.floor(Math.random() * 2));
             const chosen = [...texts].sort(() => Math.random() - 0.5).slice(0, n);
             for (const text of chosen) {
-                const direction = Math.random() < 0.7 ? 1 : -1;
-                ws.send(JSON.stringify({ type: 'vote', questionId: question.id, text, direction }));
+                targets.push({ questionId: question.id, text });
             }
         });
+
+        for (const target of targets) {
+            const delay = 500 + Math.random() * 9000;
+            setTimeout(() => {
+                if (ws && ws.readyState === WebSocket.OPEN && !terminated) {
+                    const direction = Math.random() < 0.7 ? 1 : -1;
+                    ws.send(JSON.stringify({ type: 'vote', questionId: target.questionId, text: target.text, direction }));
+                    console.log(`[${index}] voto inviato`);
+                }
+            }, delay);
+        }
     };
 
     const connect = () => {
@@ -194,8 +205,7 @@ function simulateParticipant(index) {
                     scheduleSubmit(state);
                 } else if (state.phase === 'results' && state.results && !state.votingClosed && !votedSections.has(state.sectionIndex)) {
                     votedSections.add(state.sectionIndex);
-                    castVotes(state);
-                    console.log(`[${index}] voti inviati`);
+                    scheduleVotes(state);
                 }
             } else if (message.type === 'terminated') {
                 terminated = true;
