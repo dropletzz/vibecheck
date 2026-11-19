@@ -1,15 +1,13 @@
 // PersistentWS: WebSocket client with automatic reconnection.
 // close() is the only way to stop it permanently (e.g. after a 'terminated' message).
 
-import { ClientMessage, FATAL_CLOSE_CODE, Nonce, ServerMessage, SessionId } from '../common';
+import { ClientMessage, FATAL_CLOSE_CODE, ServerMessage, SessionId } from '../common';
 
-export type WSocketRole = 'participant' | 'presenter';
 export type PersistentWSState = 'connecting' | 'open' | 'reconnecting' | 'failed' | 'closed';
 
 export interface PersistentWSOptions {
     sessionId: SessionId;
-    role: WSocketRole;
-    nonce?: Nonce;
+    queryParams?: Record<string, string>;
     onMessage: (message: ServerMessage) => void;
     onStateChange?: (state: PersistentWSState, failures: number) => void;
     minDelayMs?: number;
@@ -24,8 +22,7 @@ export interface PersistentWSOptions {
 export class PersistentWS {
     private socket: WebSocket | null = null;
     private sessionId: string;
-    private role: WSocketRole;
-    private nonce?: string;
+    private queryParams?: Record<string, string>;
     private onMessage: (message: ServerMessage) => void;
     private onStateChange?: (state: PersistentWSState, failures: number) => void;
     private currentState: PersistentWSState = 'connecting';
@@ -41,8 +38,7 @@ export class PersistentWS {
 
     constructor(options: PersistentWSOptions) {
         this.sessionId = options.sessionId;
-        this.role = options.role;
-        this.nonce = options.nonce;
+        this.queryParams = options.queryParams;
         this.onMessage = options.onMessage;
         this.onStateChange = options.onStateChange;
         this.minDelayMs = options.minDelayMs ?? 100;
@@ -98,8 +94,11 @@ export class PersistentWS {
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const query = new URLSearchParams();
         query.set('session', this.sessionId);
-        query.set('role', this.role);
-        if (this.nonce) query.set('nonce', this.nonce);
+        if (this.queryParams) {
+            for (const [key, value] of Object.entries(this.queryParams)) {
+                query.set(key, value);
+            }
+        }
         return `${protocol}://${window.location.host}/?${query.toString()}`;
     }
 

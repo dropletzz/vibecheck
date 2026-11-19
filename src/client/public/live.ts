@@ -52,7 +52,7 @@ function hideReconnecting() {
 
 const client = new PersistentWS({
     sessionId,
-    role: 'participant',
+    queryParams: { role: 'participant' },
     onMessage(message) {
         if (message.type === 'participant-state') {
             state = message.state;
