@@ -28,7 +28,7 @@ interface Session {
     closedSections: number[];
     participants: Record<UserId, true>;
     submittedBySection: Record<string, Record<UserId, true>>; // section index -> userId -> true
-    answersBySection: Record<string, Record<QuestionId, Record<UserId, Answer>>>; // section index -> questionId -> userId
+    answersBySection: Record<string, Record<QuestionId, Record<UserId, { censored: boolean | boolean[]; answer: Answer }>>>; // section index -> questionId -> userId
     votesBySection?: Record<string, Record<QuestionId, Record<string, Record<UserId, 1 | -1>>>>; // section -> question -> text -> userId
     createdAt: number;
 }
@@ -78,7 +78,20 @@ function validateStore(raw: any): Record<string, Session> {
             if (!questions || typeof questions !== 'object' || Array.isArray(questions)) throw new Error('invalid session.answersBySection.section');
             for (const userAnswers of Object.values(questions)) {
                 if (!userAnswers || typeof userAnswers !== 'object' || Array.isArray(userAnswers)) throw new Error('invalid session.answersBySection.question');
-                for (const answer of Object.values(userAnswers)) validateAnswer(answer);
+                for (const rawEntry of Object.values(userAnswers)) {
+                    const entry = rawEntry as any;
+                    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+                        throw new Error('invalid session.answersBySection.answer');
+                    }
+                    validateAnswer(entry.answer);
+                    if (Array.isArray(entry.answer)) {
+                        if (!Array.isArray(entry.censored) || entry.censored.length !== entry.answer.length || !entry.censored.every((flag: any) => typeof flag === 'boolean')) {
+                            throw new Error('invalid session.answersBySection.censored');
+                        }
+                    } else if (typeof entry.censored !== 'boolean') {
+                        throw new Error('invalid session.answersBySection.censored');
+                    }
+                }
             }
         }
 
@@ -86,6 +99,16 @@ function validateStore(raw: any): Record<string, Session> {
     }
 
     return raw.sessions as Record<string, Session>;
+}
+
+function isCensoredText(text: string, words: string[]): boolean {
+    if (!words || words.length === 0) return false;
+    const lower = text.toLowerCase();
+    return words.some((word) => {
+        if (!word) return false;
+        const escaped = word.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, 'u').test(lower);
+    });
 }
 
 export class Store {
@@ -205,6 +228,24 @@ export class Store {
         if (session) session.votingClosed = true;
     }
 
+    censorAnswer(id: SessionId, questionId: QuestionId, text: string) {
+        const session = this.sessions[id];
+        if (!session || this.phase(id) !== 'results') return;
+        const sectionKey = String(session.sectionIndex);
+        const questionAnswers = session.answersBySection[sectionKey]?.[questionId];
+        if (!questionAnswers) return;
+        for (const entry of Object.values(questionAnswers)) {
+            if (Array.isArray(entry.answer)) {
+                const index = entry.answer.indexOf(text);
+                if (index < 0) continue;
+                if (!Array.isArray(entry.censored)) entry.censored = entry.answer.map(() => false);
+                entry.censored[index] = true;
+            } else if (entry.answer === text) {
+                entry.censored = true;
+            }
+        }
+    }
+
     hasVotableQuestions(id: SessionId): boolean {
         const session = this.sessions[id];
         if (!session) return false;
@@ -293,16 +334,28 @@ export class Store {
             session.answersBySection[sectionKey] = sectionAnswers;
         }
 
+        const censoredWords = session.vibecheck.censoredWords || [];
+
         for (const question of section.questions) {
             const answer = answers[question.id];
             if (answer === undefined || answer === null) continue;
             const normalized = Array.isArray(answer) ? Array.from(new Set(answer)) : answer;
+            let censored: boolean | boolean[] = false;
+            if (question.kind === 'text') {
+                if (Array.isArray(normalized)) {
+                    censored = normalized.map((entry) => isCensoredText(entry, censoredWords));
+                } else if (typeof normalized === 'string') {
+                    censored = isCensoredText(normalized, censoredWords);
+                }
+            } else if (Array.isArray(normalized)) {
+                censored = normalized.map(() => false);
+            }
             let questionAnswers = sectionAnswers[question.id];
             if (!questionAnswers) {
                 questionAnswers = {};
                 sectionAnswers[question.id] = questionAnswers;
             }
-            questionAnswers[userId] = normalized;
+            questionAnswers[userId] = { censored, answer: normalized };
         }
 
         let submitters = session.submittedBySection[sectionKey];
@@ -399,8 +452,8 @@ export class Store {
         for (const userId of userIds) {
             answers.push(questionOrder.map(({ sectionIndex, questionId }) => {
                 const userAnswers = session.answersBySection[String(sectionIndex)]?.[questionId];
-                const answer = userAnswers?.[userId];
-                return answer === undefined ? null : answer;
+                const entry = userAnswers?.[userId];
+                return entry === undefined ? null : entry.answer;
             }));
         }
 
@@ -434,12 +487,46 @@ export class Store {
         const results: QuestionResult[] = [];
 
         for (const question of section.questions) {
-            const answers: Answer[] = [];
             const userAnswers = sectionAnswers ? sectionAnswers[question.id] : undefined;
+
+            if (question.kind === 'text') {
+                const visible: string[] = [];
+                const censoredCounts = new Map<string, number>();
+                if (userAnswers) {
+                    for (const entry of Object.values(userAnswers)) {
+                        const values = Array.isArray(entry.answer) ? entry.answer : [entry.answer];
+                        const flags = Array.isArray(entry.censored) ? entry.censored : [entry.censored];
+                        values.forEach((value, index) => {
+                            if (typeof value !== 'string') return;
+                            if (flags[index]) censoredCounts.set(value, (censoredCounts.get(value) || 0) + 1);
+                            else visible.push(value);
+                        });
+                    }
+                }
+                const censored = Array.from(censoredCounts.entries()).map(([text, count]) => ({ text, count }));
+                const censoredTexts = new Set(censored.map((entry) => entry.text));
+                const scores: Record<string, number> = {};
+                const questionVotes = this.votesOf(id)[String(sectionIndex)]?.[question.id];
+                if (questionVotes) {
+                    for (const [text, users] of Object.entries(questionVotes)) {
+                        if (censoredTexts.has(text)) continue;
+                        let score = 0;
+                        for (const vote of Object.values(users)) {
+                            if (vote === 1) score++;
+                            else score--;
+                        }
+                        scores[text] = score;
+                    }
+                }
+                results.push({ kind: 'text', answers: visible, scores, myVotes: {}, censored });
+                continue;
+            }
+
+            const answers: Answer[] = [];
             if (userAnswers) {
-                for (const answer of Object.values(userAnswers)) {
-                    if (Array.isArray(answer)) answers.push(...answer);
-                    else answers.push(answer);
+                for (const entry of Object.values(userAnswers)) {
+                    if (Array.isArray(entry.answer)) answers.push(...entry.answer);
+                    else answers.push(entry.answer);
                 }
             }
             if (question.kind === 'dimension' || question.kind === 'opposition') {
@@ -459,21 +546,6 @@ export class Store {
                     }
                 }
                 results.push({ kind: 'choice', counts });
-            } else {
-                const textAnswers = answers.filter((a): a is string => typeof a === 'string');
-                const scores: Record<string, number> = {};
-                const questionVotes = this.votesOf(id)[String(sectionIndex)]?.[question.id];
-                if (questionVotes) {
-                    for (const [text, users] of Object.entries(questionVotes)) {
-                        let score = 0;
-                        for (const vote of Object.values(users)) {
-                            if (vote === 1) score++;
-                            else score--;
-                        }
-                        scores[text] = score;
-                    }
-                }
-                results.push({ kind: 'text', answers: textAnswers, scores, myVotes: {} });
             }
         }
         return results;
@@ -488,14 +560,15 @@ export class Store {
         return base.map((result, index) => {
             if (result.kind !== 'text') return result;
             const question = section.questions[index];
+            const visibleTexts = new Set(result.answers);
             const myVotes: Record<string, 1 | -1> = {};
             const questionVotes = question && sectionVotes ? sectionVotes[question.id] : undefined;
             if (questionVotes) {
                 for (const [text, users] of Object.entries(questionVotes)) {
-                    if (users[userId] !== undefined) myVotes[text] = users[userId];
+                    if (users[userId] !== undefined && visibleTexts.has(text)) myVotes[text] = users[userId];
                 }
             }
-            return { ...result, myVotes };
+            return { ...result, myVotes, censored: [] };
         });
     }
 }

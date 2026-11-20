@@ -23,6 +23,21 @@ let previewState: { id: string; sectionIndex: number } | null = null;
 let questionPicker: { sectionIndex: number; questionIndex: number } | null = null;
 let answersView: { vibecheck: VibecheckModel; sections: { section: Section; results: QuestionResult[] }[] } | null = null;
 
+const PREDEFINED_SLURS = [
+    'negro', 'negra', 'negri', 'negre',
+    'giauro', 'giaura', 'giauri', 'giaure',
+    'frocio', 'frocia', 'froci',
+    'culattone', 'culattoni',
+    'troia', 'troie', 'puttana', 'puttane', 'puttano', 'puttani',
+    'bastardo', 'bastarda', 'bastardi', 'bastarde',
+    'coglione', 'coglioni', 'cogliona',
+    'stronzo', 'stronza', 'stronzi', 'stronze',
+    'ritardato', 'ritardata', 'ritardati', 'ritardate',
+    'handicappato', 'handicappata', 'handicappati',
+    'mongoloide', 'mongoloidi',
+    'cazzo', 'figa',
+];
+
 function currentVibecheck(): VibecheckModel {
     const vibecheck = models.find((model) => model.id === editingId);
     if (!vibecheck) throw new Error('vibecheck non trovato');
@@ -272,6 +287,66 @@ function renderEdit(): HTMLElement {
         el('div', { class: 'vspace' }),
         nameInput,
         sectionsBox,
+        renderCensorToggle(vibecheck),
+    );
+}
+
+function renderCensorToggle(vibecheck: VibecheckModel): HTMLElement {
+    const listBox = el('div', { class: 'chips' });
+    const input = el('input', { type: 'text', placeholder: 'parola da censurare' });
+
+    function refresh() {
+        const enabled = Array.isArray(vibecheck.censoredWords);
+        listBox.replaceChildren();
+        addRow.style.display = enabled ? '' : 'none';
+        listBox.style.display = enabled ? '' : 'none';
+        if (enabled) {
+            for (const word of vibecheck.censoredWords || []) {
+                listBox.append(el('span', { class: 'chip censor-word' },
+                    word,
+                    el('button', { class: 'small danger', title: 'rimuovi parola', onclick: () => {
+                        vibecheck.censoredWords = (vibecheck.censoredWords || []).filter((existing) => existing !== word);
+                        saveModels(models);
+                        refresh();
+                    } }, '✕'),
+                ));
+            }
+        }
+    }
+
+    function addWord() {
+        const word = input.value.trim().toLowerCase();
+        if (!word) return;
+        if (!Array.isArray(vibecheck.censoredWords)) vibecheck.censoredWords = [...PREDEFINED_SLURS];
+        if (!vibecheck.censoredWords.includes(word)) vibecheck.censoredWords.push(word);
+        input.value = '';
+        saveModels(models);
+        refresh();
+    }
+
+    const addRow = el('div', { class: 'link-row' },
+        input,
+        el('button', { class: 'small', onclick: addWord }, 'aggiungi'),
+    );
+
+    const checkbox = el('input', {
+        type: 'checkbox',
+        checked: Array.isArray(vibecheck.censoredWords) || null,
+        onchange: (event) => {
+            const checked = (event.target as HTMLInputElement).checked;
+            vibecheck.censoredWords = checked ? [...PREDEFINED_SLURS] : undefined;
+            saveModels(models);
+            refresh();
+        },
+    });
+
+    refresh();
+
+    return el('div', { class: 'censor-box' },
+        el('h3', {}, 'parole censurate'),
+        el('label', { class: 'check-row' }, checkbox, el('span', {}, 'censura parole')),
+        addRow,
+        listBox,
     );
 }
 
@@ -727,6 +802,7 @@ function computeResults(vibecheck: VibecheckModel, answers: (Answer | null)[][])
                     answers: collected.filter((a): a is string => typeof a === 'string'),
                     scores: {},
                     myVotes: {},
+                    censored: [],
                 };
             }
             sections[sectionIndex].results[questionIndex] = result;

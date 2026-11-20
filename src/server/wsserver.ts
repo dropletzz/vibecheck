@@ -123,6 +123,8 @@ export class WsServer {
                         this.store.setEmojiBlocked(sessionId, message.blocked);
                     } else if (message.type === 'close-voting') {
                         this.store.closeVoting(sessionId);
+                    } else if (message.type === 'censor-answer') {
+                        this.store.censorAnswer(sessionId, message.questionId, message.text);
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });

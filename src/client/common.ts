@@ -302,6 +302,7 @@ const MAX_CLUSTERS = 10;
 const HISTOGRAM_RATIO = 4 / 3;
 const SCATTER_RATIO = 3 / 1;
 const detailedQuestions = new Set<string>();
+const revealedCensored = new Set<string>();
 const textOrdering = new Map<string, 'count' | 'vote'>();
 const densityBars = new Map<string, number>();
 const clusterCounts = new Map<string, number>();
@@ -320,16 +321,16 @@ function getTextOrdering(questionId: string): 'count' | 'vote' | null {
     return textOrdering.get(questionId) ?? null;
 }
 
-export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, canVote?: (question: Question) => boolean, allowOrdering: boolean = true): HTMLElement[] {
+export function renderResults(results: QuestionResult[], questions: Question[], rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, canVote?: (question: Question) => boolean, allowOrdering: boolean = true, onCensor?: (questionId: string, text: string) => void): HTMLElement[] {
     return results.map((result, index) => {
         const question = questions[index];
         if (!question) return el('div', {});
         const vote = onVote && (!canVote || canVote(question)) ? onVote : undefined;
-        return renderResultCard(result, question, rerender, vote, allowOrdering);
+        return renderResultCard(result, question, rerender, vote, allowOrdering, onCensor);
     });
 }
 
-function renderResultCard(result: QuestionResult, question: Question, rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, allowOrdering: boolean = true): HTMLElement {
+function renderResultCard(result: QuestionResult, question: Question, rerender: () => void, onVote?: (questionId: string, text: string, direction: 1 | -1) => void, allowOrdering: boolean = true, onCensor?: (questionId: string, text: string) => void): HTMLElement {
     const isNumeric = result.kind === 'dimension' || result.kind === 'opposition';
     const isText = result.kind === 'text';
 
@@ -345,7 +346,8 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         );
     } else if (isText) {
         const expanded = detailedQuestions.has(question.id);
-        if ((result as TextResult).answers.length > 0) {
+        const textResult = result as TextResult;
+        if (textResult.answers.length > 0 || textResult.censored.length > 0) {
             header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, expanded ? 'nascondi' : 'mostra'));
         }
     } else {
@@ -358,7 +360,8 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         card.append(renderNumericPlot(result as SliderResult, question, rerender));
     } else if (isText) {
         const vote = onVote ? (text: string, direction: 1 | -1) => onVote(question.id, text, direction) : undefined;
-        card.append(renderTextResult(result as TextResult, question, vote, question.id, rerender, allowOrdering));
+        const censor = onCensor ? (text: string) => onCensor(question.id, text) : undefined;
+        card.append(renderTextResult(result as TextResult, question, vote, question.id, rerender, allowOrdering, censor));
     } else {
         const detailed = detailedQuestions.has(question.id);
         card.append(detailed ? renderChoiceDetailed(result as ChoiceResult, question) : renderChoiceSummary(result as ChoiceResult, question));
@@ -488,9 +491,9 @@ function toggleDetailed(questionId: string, rerender: () => void) {
     rerender();
 }
 
-function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void, allowOrdering: boolean = true): HTMLElement {
+function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void, allowOrdering: boolean = true, onCensor?: (text: string) => void): HTMLElement {
     const groups = groupTextAnswers(result);
-    if (groups.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
+    if (groups.length === 0 && result.censored.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
 
     const id = questionId ?? '';
     if (!detailedQuestions.has(id)) return el('div', {});
@@ -524,12 +527,15 @@ function renderTextResult(result: TextResult, question: Question, onVote?: (text
         children.push(orderButtons);
     }
 
-    children.push(...renderTextBoxes(ordered, onVote, questionId));
+    children.push(...renderTextBoxes(ordered, onVote, questionId, onCensor));
+
+    const censoredBlock = renderCensoredBlock(result.censored, id, rerender);
+    if (censoredBlock) children.push(censoredBlock);
 
     return el('div', { class: 'text-results detailed' }, ...children);
 }
 
-function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void, questionId?: string): HTMLElement[] {
+function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, onCensor?: (text: string) => void): HTMLElement[] {
     return groups.map((group) => {
         const key = (questionId ?? '') + '\u0000' + group.text;
         if (onVote) {
@@ -546,8 +552,38 @@ function renderTextBoxes(groups: { text: string; count: number; score: number; m
         box.append(el('span', { class: 'answer-count' }, 'conteggio: ' + group.count));
         box.append(el('span', { class: 'answer-text' }, group.text));
         if (group.score !== 0) box.append(el('span', { class: 'vote-score' }, (group.score > 0 ? '+' : '') + group.score));
+        if (onCensor) box.append(el('button', { class: 'small danger censor-x', title: 'censura risposta', onclick: () => onCensor(group.text) }, '✕'));
         return box;
     });
+}
+
+function renderCensoredBlock(censored: { text: string; count: number }[], questionId: string, rerender?: () => void): HTMLElement | null {
+    if (censored.length === 0) return null;
+    const total = censored.reduce((sum, entry) => sum + entry.count, 0);
+    const revealed = revealedCensored.has(questionId);
+    const toggle = () => {
+        if (revealedCensored.has(questionId)) revealedCensored.delete(questionId);
+        else revealedCensored.add(questionId);
+        if (rerender) rerender();
+    };
+
+    const block = el('div', { class: 'censored-block' },
+        el('div', { class: 'censored-header' },
+            el('span', { class: 'muted' }, 'censurate: ' + total),
+            el('button', { class: 'small', onclick: toggle }, revealed ? 'nascondi' : 'mostra'),
+        ),
+    );
+    if (revealed) {
+        const answers = el('div', { class: 'text-results' });
+        for (const entry of censored) {
+            answers.append(el('div', { class: 'answer-box with-score censored-answer' },
+                el('span', { class: 'answer-count' }, 'conteggio: ' + entry.count),
+                el('span', { class: 'answer-text' }, entry.text),
+            ));
+        }
+        block.append(answers);
+    }
+    return block;
 }
 
 function groupTextAnswers(result: TextResult): { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[] {

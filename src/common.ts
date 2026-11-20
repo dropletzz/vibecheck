@@ -48,6 +48,7 @@ export interface VibecheckModel {
     id: VibecheckId;
     name: string;
     sections: Section[];
+    censoredWords?: string[];
 }
 
 export interface Section {
@@ -146,6 +147,7 @@ export interface TextResult {
     answers: string[];
     scores: Record<string, number>; // text -> upvotes - downvotes
     myVotes: Record<string, 1 | -1>; // text -> viewing user's vote
+    censored: { text: string; count: number }[]; // censored answers (presenter only)
 }
 
 export type QuestionResult = SliderResult | ChoiceResult | TextResult;
@@ -256,7 +258,13 @@ export interface CloseVotingMessage {
     type: 'close-voting';
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage | CloseVotingMessage;
+export interface CensorAnswerMessage {
+    type: 'censor-answer';
+    questionId: QuestionId;
+    text: string;
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage | CloseVotingMessage | CensorAnswerMessage;
 
 
 // ---------- validation ----------
@@ -265,6 +273,11 @@ export function validateVibecheck(raw: any): VibecheckModel {
     if (!raw || typeof raw !== 'object') throw new Error('invalid vibecheck');
     if (typeof raw.id !== 'string') throw new Error('invalid vibecheck.id');
     if (typeof raw.name !== 'string') throw new Error('invalid vibecheck.name');
+    if (raw.censoredWords !== undefined) {
+        if (!Array.isArray(raw.censoredWords) || !raw.censoredWords.every((word: any) => typeof word === 'string')) {
+            throw new Error('invalid vibecheck.censoredWords');
+        }
+    }
     if (!Array.isArray(raw.sections)) throw new Error('invalid vibecheck.sections');
     for (const section of raw.sections) validateSection(section);
     return raw as VibecheckModel;

@@ -1,5 +1,5 @@
 import { el, elLoading, renderQuestion, renderResults } from '../common';
-import { ClientMessage, Nonce, PresenterState, SessionId, SummaryState, throttle } from '../../common';
+import { ClientMessage, Nonce, PresenterState, QuestionId, SessionId, SummaryState, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 import { renderQrCode } from '../qrcode';
 import { spawnEmoji } from '../animations';
@@ -218,7 +218,7 @@ function renderPresenter(): HTMLElement {
     ));
 
     if (state.phase === 'results') {
-        children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [], render)));
+        children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [], render, undefined, undefined, true, censorAnswer)));
         if (state.hasVotable && !state.votingClosed) {
             children.push(el('div', { class: 'flex-h' },
                 el('button', { class: 'danger', onclick: () => {
@@ -358,6 +358,11 @@ function renderLobbyView(): HTMLElement {
         ),
         el('button', { class: 'big', onclick: () => send({ type: 'start' }) }, 'inizia'),
     );
+}
+
+function censorAnswer(questionId: string, text: string) {
+    if (!confirm('vuoi censurare questa risposta?')) return;
+    send({ type: 'censor-answer', questionId: questionId as QuestionId, text });
 }
 
 function terminate() {
