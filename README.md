@@ -9,4 +9,5 @@ aks questions, visualize answers, live
     [x] participants can like/unlike text responses
 [x] qr
 [ ] custom plots that compare 2 answers
+[ ] option to ban participant that gave an answer (or all participants with censored answers)
  
