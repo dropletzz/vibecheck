@@ -2,40 +2,6 @@
 // close code the server sends for permanent errors (unknown session, invalid nonce)
 export const FATAL_CLOSE_CODE = 4001;
 
-export function throttle(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
-    let last = 0;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    return (...args: any[]) => {
-        const now = Date.now();
-        const remaining = waitMs - (now - last);
-        if (remaining <= 0) {
-            if (timer) {
-                clearTimeout(timer);
-                timer = null;
-            }
-            last = now;
-            fn(...args);
-        } else if (!timer) { // trailing call
-            timer = setTimeout(() => {
-                last = Date.now();
-                timer = null;
-                fn(...args);
-            }, remaining);
-        }
-    };
-}
-
-export function debounce(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    return (...args: any[]) => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-            timer = null;
-            fn(...args);
-        }, waitMs);
-    };
-}
-
 type Brand<T, B> = T & { readonly __brand: B };
 
 export type VibecheckId = Brand<string, 'VibecheckId'>;
@@ -209,7 +175,13 @@ export interface EmojiEvent {
     emoji: string;
 }
 
-export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent;
+export interface PresenterCountsMessage {
+    type: 'presenter-counts';
+    participantCount: number;
+    answerCount: number;
+}
+
+export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent | PresenterCountsMessage;
 
 export interface SetSectionMessage {
     type: 'set-section';
@@ -326,3 +298,39 @@ function validateQuestion(raw: any): void {
             throw new Error('invalid question.kind');
     }
 }
+
+
+export function throttle(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
+    let last = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (...args: any[]) => {
+        const now = Date.now();
+        const remaining = waitMs - (now - last);
+        if (remaining <= 0) {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            last = now;
+            fn(...args);
+        } else if (!timer) { // trailing call
+            timer = setTimeout(() => {
+                last = Date.now();
+                timer = null;
+                fn(...args);
+            }, remaining);
+        }
+    };
+}
+
+export function debounce(fn: (...args: any[]) => void, waitMs: number): (...args: any[]) => void {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (...args: any[]) => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+            timer = null;
+            fn(...args);
+        }, waitMs);
+    };
+}
+

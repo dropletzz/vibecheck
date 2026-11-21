@@ -34,7 +34,14 @@ const client = new PersistentWS({
     onMessage(message) {
         if (message.type === 'state') {
             state = message.state;
+            patchCounters();
             scheduleRender();
+        } else if (message.type === 'presenter-counts') {
+            if (state) {
+                state.participantCount = message.participantCount;
+                state.answerCount = message.answerCount;
+                patchCounters();
+            }
         } else if (message.type === 'terminated') {
             terminated = true;
             showQuestions = false;
@@ -142,6 +149,14 @@ function render() {
 
 const scheduleRender = throttle(() => render(), 500);
 
+function patchCounters() {
+    if (!state) return;
+    const participants = document.querySelector('[data-counter="participants"]');
+    if (participants) participants.textContent = state.participantCount + ' partecipanti';
+    const answers = document.querySelector('[data-counter="answers"]');
+    if (answers) answers.textContent = state.answerCount + ' risposte';
+}
+
 function closeSummary() {
     summaryState = null;
     render();
@@ -203,8 +218,8 @@ function renderPresenter(): HTMLElement {
     if (section?.title) children.push(el('h2', {}, section.title));
     children.push(
         el('div', { class: 'counters' },
-            el('p', { class: 'counter' }, state.participantCount + ' partecipanti'),
-            el('p', { class: 'counter' }, state.answerCount + ' risposte'),
+            el('p', { class: 'counter', 'data-counter': 'participants' }, state.participantCount + ' partecipanti'),
+            el('p', { class: 'counter', 'data-counter': 'answers' }, state.answerCount + ' risposte'),
         ),
     );
 
@@ -341,7 +356,7 @@ function renderLobbyView(): HTMLElement {
         el('h1', {}, state.name || 'vibecheck'),
         el('p', { class: 'empty' }, 'in attesa dei partecipanti...'),
         el('div', { class: 'counters' },
-            el('p', { class: 'counter' }, state.participantCount + ' partecipanti'),
+            el('p', { class: 'counter', 'data-counter': 'participants' }, state.participantCount + ' partecipanti'),
         ),
         el('div', { class: 'link-row' },
             linkInput,

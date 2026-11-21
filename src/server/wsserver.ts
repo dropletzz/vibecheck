@@ -40,6 +40,13 @@ export class WsServer {
         if (state) this.send(ws, { type: 'state', state });
     }
 
+    private sendPresenterCounts(sessionId: SessionId) {
+        const ws = this.presenterSockets.get(sessionId);
+        if (!ws) return;
+        const counts = this.store.getPresenterCounts(sessionId);
+        if (counts) this.send(ws, { type: 'presenter-counts', participantCount: counts.participantCount, answerCount: counts.answerCount });
+    }
+
     private schedulePresenterState(sessionId: SessionId) {
         let fn = this.presenterThrottles.get(sessionId);
         if (!fn) {
@@ -162,7 +169,7 @@ export class WsServer {
             }
             sockets.set(userId, ws);
 
-            this.sendPresenterState(sessionId);
+            this.sendPresenterCounts(sessionId);
             ws.on('message', (data) => {
                 try {
                     const message = JSON.parse(String(data)) as ClientMessage;
@@ -170,7 +177,7 @@ export class WsServer {
                         this.store.submitAnswers(sessionId, userId, message.answers || {});
                         const state = this.store.getParticipantState(sessionId, userId);
                         if (state) this.send(ws, { type: 'participant-state', state });
-                        this.schedulePresenterState(sessionId);
+                        this.sendPresenterCounts(sessionId);
                     } else if (message.type === 'vote') {
                         this.store.vote(sessionId, userId, message.questionId, message.text, message.direction);
                         const state = this.store.getParticipantState(sessionId, userId);
@@ -189,7 +196,7 @@ export class WsServer {
                     map.delete(userId);
                     if (map.size === 0) this.participantSockets.delete(sessionId);
                 }
-                this.sendPresenterState(sessionId);
+                this.sendPresenterCounts(sessionId);
             });
             const state = this.store.getParticipantState(sessionId, userId);
             if (state) this.send(ws, { type: 'participant-state', state });

@@ -386,6 +386,15 @@ export class Store {
         };
     }
 
+    getPresenterCounts(id: SessionId): { participantCount: number; answerCount: number } | null {
+        const session = this.sessions[id];
+        if (!session) return null;
+        return {
+            participantCount: Object.keys(session.participants).length,
+            answerCount: this.phase(id) === 'lobby' ? 0 : this.answerCount(id),
+        };
+    }
+
     getStatus(): { sessions: number; participants: number } {
         let participants = 0;
         for (const session of Object.values(this.sessions)) {
