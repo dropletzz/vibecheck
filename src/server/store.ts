@@ -282,6 +282,22 @@ export class Store {
         return session.votesBySection;
     }
 
+    scoreOf(id: SessionId, sectionIndex: number, questionId: QuestionId, text: string): number {
+        const users = this.votesOf(id)[String(sectionIndex)]?.[questionId]?.[text];
+        if (!users) return 0;
+        let score = 0;
+        for (const vote of Object.values(users)) {
+            if (vote === 1) score++;
+            else score--;
+        }
+        return score;
+    }
+
+    myVoteOf(id: SessionId, sectionIndex: number, userId: UserId, questionId: QuestionId, text: string): 1 | -1 | null {
+        const vote = this.votesOf(id)[String(sectionIndex)]?.[questionId]?.[text]?.[userId];
+        return vote === undefined ? null : vote;
+    }
+
     vote(id: SessionId, userId: UserId, questionId: QuestionId, text: string, direction: 1 | -1) {
         const session = this.sessions[id];
         if (!session || this.phase(id) !== 'results') return;

@@ -1,6 +1,6 @@
 // participant page: answer the current section
 
-import { el, elLoading, makeSlider, renderQuestion, renderResults, SliderElement } from '../common';
+import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard, SliderElement } from '../common';
 import { Answer, ParticipantState, Question, QuestionId, SessionId, TextQuestion, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 
@@ -60,7 +60,21 @@ const client = new PersistentWS({
                 lastSectionIndex = state.sectionIndex;
                 myAnswers = loadAnswers(state.sectionIndex);
             }
-            scheduleRender();
+            render();
+        } else if (message.type === 'vote-delta') {
+            const section = state?.section;
+            if (state && section && state.results) {
+                if (applyVoteDelta(state.results, section.questions, message.questionId, message.text, message.score, message.myVote)) {
+                    rerenderQuestionCard(state.results, section.questions, message.questionId, render, vote, (question) => question.kind === 'text' && !!question.votable && !state.votingClosed, false);
+                }
+            }
+        } else if (message.type === 'censor-delta') {
+            const section = state?.section;
+            if (state && section && state.results) {
+                if (applyCensorDelta(state.results, section.questions, message.questionId, message.text)) {
+                    rerenderQuestionCard(state.results, section.questions, message.questionId, render, vote, (question) => question.kind === 'text' && !!question.votable && !state.votingClosed, false);
+                }
+            }
         } else if (message.type === 'terminated') {
             terminated = true;
             render();
@@ -91,8 +105,6 @@ function render() {
     }
     document.body.replaceChildren(renderParticipant());
 }
-
-const scheduleRender = throttle(() => render(), 500);
 
 function renderParticipant(): HTMLElement {
     if (state.phase === 'lobby') {

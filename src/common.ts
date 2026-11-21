@@ -181,7 +181,21 @@ export interface PresenterCountsMessage {
     answerCount: number;
 }
 
-export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent | PresenterCountsMessage;
+export interface VoteDeltaMessage {
+    type: 'vote-delta';
+    questionId: QuestionId;
+    text: string;
+    score: number;
+    myVote?: 1 | -1 | null;
+}
+
+export interface CensorDeltaMessage {
+    type: 'censor-delta';
+    questionId: QuestionId;
+    text: string;
+}
+
+export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent | PresenterCountsMessage | VoteDeltaMessage | CensorDeltaMessage;
 
 export interface SetSectionMessage {
     type: 'set-section';

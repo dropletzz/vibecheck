@@ -2,9 +2,9 @@ import * as http from 'http';
 import * as https from 'https';
 import { WebSocketServer } from 'ws';
 import { Store } from './store';
-import { ClientMessage, FATAL_CLOSE_CODE, Nonce, ServerMessage, SessionId, UserId, makeId, throttle } from '../common';
+import { ClientMessage, FATAL_CLOSE_CODE, Nonce, QuestionId, ServerMessage, SessionId, UserId, makeId } from '../common';
 
-const STATE_BROADCAST_MS = 150;
+const VOTE_DELTA_MS = 150;
 
 interface WsServerConfig {
     server: http.Server | https.Server;
@@ -16,8 +16,8 @@ export class WsServer {
     private wss: WebSocketServer;
     private presenterSockets = new Map<string, any>();
     private participantSockets = new Map<string, Map<string, any>>();
-    private presenterThrottles = new Map<string, () => void>();
-    private participantThrottles = new Map<string, () => void>();
+    private voteDeltaBuffers = new Map<string, Map<string, { sectionIndex: number; questionId: QuestionId; text: string }>>();
+    private voteDeltaTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     constructor(config: WsServerConfig) {
         this.store = config.store;
@@ -47,22 +47,52 @@ export class WsServer {
         if (counts) this.send(ws, { type: 'presenter-counts', participantCount: counts.participantCount, answerCount: counts.answerCount });
     }
 
-    private schedulePresenterState(sessionId: SessionId) {
-        let fn = this.presenterThrottles.get(sessionId);
-        if (!fn) {
-            fn = throttle(() => this.sendPresenterState(sessionId), STATE_BROADCAST_MS);
-            this.presenterThrottles.set(sessionId, fn);
+    private broadcastVoteDelta(sessionId: SessionId, questionId: QuestionId, text: string, score: number) {
+        const presenter = this.presenterSockets.get(sessionId);
+        if (presenter) this.send(presenter, { type: 'vote-delta', questionId, text, score });
+        const sockets = this.participantSockets.get(sessionId);
+        if (sockets) {
+            for (const pws of sockets.values()) {
+                this.send(pws, { type: 'vote-delta', questionId, text, score });
+            }
         }
-        fn();
     }
 
-    private scheduleBroadcastParticipants(sessionId: SessionId) {
-        let fn = this.participantThrottles.get(sessionId);
-        if (!fn) {
-            fn = throttle(() => this.broadcastParticipants(sessionId), STATE_BROADCAST_MS);
-            this.participantThrottles.set(sessionId, fn);
+    private broadcastCensorDelta(sessionId: SessionId, questionId: QuestionId, text: string) {
+        const presenter = this.presenterSockets.get(sessionId);
+        if (presenter) this.send(presenter, { type: 'censor-delta', questionId, text });
+        const sockets = this.participantSockets.get(sessionId);
+        if (sockets) {
+            for (const pws of sockets.values()) {
+                this.send(pws, { type: 'censor-delta', questionId, text });
+            }
         }
-        fn();
+    }
+
+    private bufferVoteDelta(sessionId: SessionId, sectionIndex: number, questionId: QuestionId, text: string) {
+        let buffer = this.voteDeltaBuffers.get(sessionId);
+        if (!buffer) {
+            buffer = new Map();
+            this.voteDeltaBuffers.set(sessionId, buffer);
+        }
+        const key = questionId + '\u0000' + text;
+        if (!buffer.has(key)) buffer.set(key, { sectionIndex, questionId, text });
+        if (!this.voteDeltaTimers.has(sessionId)) {
+            this.voteDeltaTimers.set(sessionId, setTimeout(() => {
+                this.voteDeltaTimers.delete(sessionId);
+                this.flushVoteDeltas(sessionId);
+            }, VOTE_DELTA_MS));
+        }
+    }
+
+    private flushVoteDeltas(sessionId: SessionId) {
+        const buffer = this.voteDeltaBuffers.get(sessionId);
+        if (!buffer) return;
+        this.voteDeltaBuffers.delete(sessionId);
+        for (const entry of buffer.values()) {
+            const score = this.store.scoreOf(sessionId, entry.sectionIndex, entry.questionId, entry.text);
+            this.broadcastVoteDelta(sessionId, entry.questionId, entry.text, score);
+        }
     }
 
     private sendEmoji(sessionId: SessionId, emoji: string) {
@@ -132,6 +162,8 @@ export class WsServer {
                         this.store.closeVoting(sessionId);
                     } else if (message.type === 'censor-answer') {
                         this.store.censorAnswer(sessionId, message.questionId, message.text);
+                        this.broadcastCensorDelta(sessionId, message.questionId, message.text);
+                        return;
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });
@@ -147,8 +179,10 @@ export class WsServer {
                         this.send(ws, { type: 'terminated' });
                         this.presenterSockets.delete(sessionId);
                         this.participantSockets.delete(sessionId);
-                        this.presenterThrottles.delete(sessionId);
-                        this.participantThrottles.delete(sessionId);
+                        const voteTimer = this.voteDeltaTimers.get(sessionId);
+                        if (voteTimer) clearTimeout(voteTimer);
+                        this.voteDeltaTimers.delete(sessionId);
+                        this.voteDeltaBuffers.delete(sessionId);
                         return;
                     }
                     this.sendPresenterState(sessionId);
@@ -179,11 +213,13 @@ export class WsServer {
                         if (state) this.send(ws, { type: 'participant-state', state });
                         this.sendPresenterCounts(sessionId);
                     } else if (message.type === 'vote') {
+                        const session = this.store.getSession(sessionId);
+                        const sectionIndex = session ? session.sectionIndex : 0;
                         this.store.vote(sessionId, userId, message.questionId, message.text, message.direction);
-                        const state = this.store.getParticipantState(sessionId, userId);
-                        if (state) this.send(ws, { type: 'participant-state', state });
-                        this.scheduleBroadcastParticipants(sessionId);
-                        this.schedulePresenterState(sessionId);
+                        const score = this.store.scoreOf(sessionId, sectionIndex, message.questionId, message.text);
+                        const myVote = this.store.myVoteOf(sessionId, sectionIndex, userId, message.questionId, message.text);
+                        this.send(ws, { type: 'vote-delta', questionId: message.questionId, text: message.text, score, myVote });
+                        this.bufferVoteDelta(sessionId, sectionIndex, message.questionId, message.text);
                     } else if (message.type === 'emoji') {
                         this.sendEmoji(sessionId, message.emoji);
                     }

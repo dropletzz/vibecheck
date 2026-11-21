@@ -1,5 +1,5 @@
-import { el, elLoading, renderQuestion, renderResults } from '../common';
-import { ClientMessage, Nonce, PresenterState, QuestionId, SessionId, SummaryState, throttle } from '../../common';
+import { applyCensorDelta, applyVoteDelta, el, elLoading, renderQuestion, renderResults, rerenderQuestionCard } from '../common';
+import { ClientMessage, Nonce, PresenterState, QuestionId, SessionId, SummaryState } from '../../common';
 import { PersistentWS } from '../wsock';
 import { renderQrCode } from '../qrcode';
 import { spawnEmoji } from '../animations';
@@ -35,12 +35,26 @@ const client = new PersistentWS({
         if (message.type === 'state') {
             state = message.state;
             patchCounters();
-            scheduleRender();
+            render();
         } else if (message.type === 'presenter-counts') {
             if (state) {
                 state.participantCount = message.participantCount;
                 state.answerCount = message.answerCount;
                 patchCounters();
+            }
+        } else if (message.type === 'vote-delta') {
+            const section = state?.section;
+            if (state && section && state.results) {
+                if (applyVoteDelta(state.results, section.questions, message.questionId, message.text, message.score, message.myVote)) {
+                    rerenderQuestionCard(state.results, section.questions, message.questionId, render, undefined, undefined, true, censorAnswer);
+                }
+            }
+        } else if (message.type === 'censor-delta') {
+            const section = state?.section;
+            if (state && section && state.results) {
+                if (applyCensorDelta(state.results, section.questions, message.questionId, message.text)) {
+                    rerenderQuestionCard(state.results, section.questions, message.questionId, render, undefined, undefined, true, censorAnswer);
+                }
             }
         } else if (message.type === 'terminated') {
             terminated = true;
@@ -146,8 +160,6 @@ function render() {
     if (showQr) document.body.append(renderQrModal());
     animateAnswerBoxes(prev);
 }
-
-const scheduleRender = throttle(() => render(), 500);
 
 function patchCounters() {
     if (!state) return;

@@ -355,7 +355,7 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, detailed ? 'riepilogo' : 'dettaglio'));
     }
 
-    const card = el('div', { class: 'card' }, header);
+    const card = el('div', { class: 'card', 'data-question-id': question.id }, header);
     if (isNumeric) {
         card.append(renderNumericPlot(result as SliderResult, question, rerender));
     } else if (isText) {
@@ -367,6 +367,93 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         card.append(detailed ? renderChoiceDetailed(result as ChoiceResult, question) : renderChoiceSummary(result as ChoiceResult, question));
     }
     return card;
+}
+
+function findTextResult(results: QuestionResult[] | null, questions: Question[], questionId: string): TextResult | null {
+    if (!results) return null;
+    const index = questions.findIndex((q) => q.id === questionId);
+    if (index < 0) return null;
+    const result = results[index];
+    return result && result.kind === 'text' ? result : null;
+}
+
+export function applyVoteDelta(results: QuestionResult[] | null, questions: Question[], questionId: string, text: string, score: number, myVote?: 1 | -1 | null): boolean {
+    const result = findTextResult(results, questions, questionId);
+    if (!result) return false;
+    result.scores[text] = score;
+    if (myVote !== undefined) {
+        if (myVote === null) delete result.myVotes[text];
+        else result.myVotes[text] = myVote;
+    }
+    return true;
+}
+
+export function applyCensorDelta(results: QuestionResult[] | null, questions: Question[], questionId: string, text: string): boolean {
+    const result = findTextResult(results, questions, questionId);
+    if (!result) return false;
+    let count = 0;
+    result.answers = result.answers.filter((answer) => {
+        if (answer === text) {
+            count++;
+            return false;
+        }
+        return true;
+    });
+    delete result.scores[text];
+    delete result.myVotes[text];
+    const existing = result.censored.find((entry) => entry.text === text);
+    if (existing) existing.count += count;
+    else if (count > 0) result.censored.push({ text, count });
+    return true;
+}
+
+export function rerenderQuestionCard(
+    results: QuestionResult[] | null,
+    questions: Question[],
+    questionId: string,
+    rerender: () => void,
+    onVote?: (questionId: string, text: string, direction: 1 | -1) => void,
+    canVote?: (question: Question) => boolean,
+    allowOrdering: boolean = true,
+    onCensor?: (questionId: string, text: string) => void,
+): void {
+    if (!results) return;
+    const index = questions.findIndex((q) => q.id === questionId);
+    if (index < 0) return;
+    const oldCard = document.querySelector(`[data-question-id="${CSS.escape(questionId)}"]`) as HTMLElement | null;
+    if (!oldCard) return;
+
+    const question = questions[index];
+    const result = results[index];
+    const vote = onVote && (!canVote || canVote(question)) ? onVote : undefined;
+
+    const previous = new Map<string, DOMRect>();
+    oldCard.querySelectorAll('.answer-box[data-key]').forEach((node) => {
+        const box = node as HTMLElement;
+        const key = box.dataset.key || '';
+        if (key) previous.set(key, box.getBoundingClientRect());
+    });
+
+    const newCard = renderResultCard(result, question, rerender, vote, allowOrdering, onCensor);
+    oldCard.replaceWith(newCard);
+
+    newCard.querySelectorAll('.answer-box[data-key]').forEach((node) => {
+        const box = node as HTMLElement;
+        const key = box.dataset.key || '';
+        const old = previous.get(key);
+        if (!old) return;
+        const now = box.getBoundingClientRect();
+        const dx = old.left - now.left;
+        const dy = old.top - now.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        box.animate(
+            [
+                { transform: `translate(${dx}px, ${dy}px)` },
+                { transform: 'translate(0, 0)' },
+            ],
+            { duration: 350, easing: 'ease-out' },
+        );
+    });
 }
 
 function createResultCanvas(aspectRatio: number, draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void): HTMLCanvasElement {
