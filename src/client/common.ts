@@ -388,7 +388,7 @@ export function applyVoteDelta(results: QuestionResult[] | null, questions: Ques
     return true;
 }
 
-export function applyCensorDelta(results: QuestionResult[] | null, questions: Question[], questionId: string, text: string): boolean {
+export function applyCensorDelta(results: QuestionResult[] | null, questions: Question[], questionId: string, text: string, trackCensored: boolean = true): boolean {
     const result = findTextResult(results, questions, questionId);
     if (!result) return false;
     let count = 0;
@@ -401,9 +401,11 @@ export function applyCensorDelta(results: QuestionResult[] | null, questions: Qu
     });
     delete result.scores[text];
     delete result.myVotes[text];
-    const existing = result.censored.find((entry) => entry.text === text);
-    if (existing) existing.count += count;
-    else if (count > 0) result.censored.push({ text, count });
+    if (trackCensored) {
+        const existing = result.censored.find((entry) => entry.text === text);
+        if (existing) existing.count += count;
+        else if (count > 0) result.censored.push({ text, count });
+    }
     return true;
 }
 

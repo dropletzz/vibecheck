@@ -71,7 +71,7 @@ const client = new PersistentWS({
         } else if (message.type === 'censor-delta') {
             const section = state?.section;
             if (state && section && state.results) {
-                if (applyCensorDelta(state.results, section.questions, message.questionId, message.text)) {
+                if (applyCensorDelta(state.results, section.questions, message.questionId, message.text, false)) {
                     rerenderQuestionCard(state.results, section.questions, message.questionId, render, vote, (question) => question.kind === 'text' && !!question.votable && !state.votingClosed, false);
                 }
             }
