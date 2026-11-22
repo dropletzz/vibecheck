@@ -420,26 +420,33 @@ export function rerenderQuestionCard(
     onCensor?: (questionId: string, text: string) => void,
 ): void {
     if (!results) return;
+    // only re-render when the answers are visible
+    if (!detailedQuestions.has(questionId)) return;
+
     const index = questions.findIndex((q) => q.id === questionId);
     if (index < 0) return;
-    const oldCard = document.querySelector(`[data-question-id="${CSS.escape(questionId)}"]`) as HTMLElement | null;
-    if (!oldCard) return;
+    const result = results[index];
+    if (!result || result.kind !== 'text') return;
+
+    const cardEl = document.querySelector(`[data-question-id="${CSS.escape(questionId)}"]`) as HTMLElement | null;
+    if (!cardEl) return;
+    const container = cardEl.querySelector('.text-results.detailed') as HTMLElement | null;
+    if (!container) return;
 
     const question = questions[index];
-    const result = results[index];
-    const vote = onVote && (!canVote || canVote(question)) ? onVote : undefined;
+    const vote = onVote && (!canVote || canVote(question)) ? (text: string, direction: 1 | -1) => onVote(questionId, text, direction) : undefined;
+    const censor = onCensor ? (text: string) => onCensor(questionId, text) : undefined;
 
     const previous = new Map<string, DOMRect>();
-    oldCard.querySelectorAll('.answer-box[data-key]').forEach((node) => {
+    container.querySelectorAll('.answer-box[data-key]').forEach((node) => {
         const box = node as HTMLElement;
         const key = box.dataset.key || '';
         if (key) previous.set(key, box.getBoundingClientRect());
     });
 
-    const newCard = renderResultCard(result, question, rerender, vote, allowOrdering, onCensor);
-    oldCard.replaceWith(newCard);
+    container.replaceChildren(...buildTextResultChildren(result, question, vote, questionId, rerender, allowOrdering, censor));
 
-    newCard.querySelectorAll('.answer-box[data-key]').forEach((node) => {
+    container.querySelectorAll('.answer-box[data-key]').forEach((node) => {
         const box = node as HTMLElement;
         const key = box.dataset.key || '';
         const old = previous.get(key);
@@ -580,14 +587,9 @@ function toggleDetailed(questionId: string, rerender: () => void) {
     rerender();
 }
 
-function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void, allowOrdering: boolean = true, onCensor?: (text: string) => void): HTMLElement {
+function buildTextResultChildren(result: TextResult, question: Question, onVote: ((text: string, direction: 1 | -1) => void) | undefined, questionId: string, rerender: (() => void) | undefined, allowOrdering: boolean, onCensor: ((text: string) => void) | undefined): HTMLElement[] {
     const groups = groupTextAnswers(result);
-    if (groups.length === 0 && result.censored.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
-
-    const id = questionId ?? '';
-    if (!detailedQuestions.has(id)) return el('div', {});
-
-    const mode = getTextOrdering(id);
+    const mode = getTextOrdering(questionId);
     const ordered = mode ? orderTextGroups(groups, mode) : groups;
     const votable = question.kind === 'text' && !!question.votable;
 
@@ -595,8 +597,8 @@ function renderTextResult(result: TextResult, question: Question, onVote?: (text
 
     if (allowOrdering) {
         const toggleOrder = (next: 'count' | 'vote') => {
-            if (textOrdering.get(id) === next) textOrdering.delete(id);
-            else textOrdering.set(id, next);
+            if (textOrdering.get(questionId) === next) textOrdering.delete(questionId);
+            else textOrdering.set(questionId, next);
             if (rerender) rerender();
         };
 
@@ -618,10 +620,20 @@ function renderTextResult(result: TextResult, question: Question, onVote?: (text
 
     children.push(...renderTextBoxes(ordered, onVote, questionId, onCensor));
 
-    const censoredBlock = renderCensoredBlock(result.censored, id, rerender);
+    const censoredBlock = renderCensoredBlock(result.censored, questionId, rerender);
     if (censoredBlock) children.push(censoredBlock);
 
-    return el('div', { class: 'text-results detailed' }, ...children);
+    return children;
+}
+
+function renderTextResult(result: TextResult, question: Question, onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, rerender?: () => void, allowOrdering: boolean = true, onCensor?: (text: string) => void): HTMLElement {
+    const groups = groupTextAnswers(result);
+    if (groups.length === 0 && result.censored.length === 0) return el('p', { class: 'muted' }, 'nessuna risposta');
+
+    const id = questionId ?? '';
+    if (!detailedQuestions.has(id)) return el('div', {});
+
+    return el('div', { class: 'text-results detailed' }, ...buildTextResultChildren(result, question, onVote, id, rerender, allowOrdering, onCensor));
 }
 
 function renderTextBoxes(groups: { text: string; count: number; score: number; myVote: 1 | -1 | undefined }[], onVote?: (text: string, direction: 1 | -1) => void, questionId?: string, onCensor?: (text: string) => void): HTMLElement[] {
