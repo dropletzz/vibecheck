@@ -322,7 +322,6 @@ function renderQrModal(): HTMLElement {
 
     const modal = el('div', { class: 'modal alt-bg' },
         el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: () => { showQr = false; render(); } }, '✕'),
-        el('h2', {}, 'scansiona per partecipare'),
         qrCanvas,
     );
 
@@ -364,16 +363,18 @@ function renderLobbyView(): HTMLElement {
         onclick: (event) => (event.target as HTMLInputElement).select(),
     });
 
+    const qrCanvas = el('canvas', { class: 'qr-canvas' });
+    renderQrCode(qrCanvas, { text: participantLink() });
+
     return el('main', { class: 'presenter' },
         el('h1', {}, state.name || 'vibecheck'),
-        el('p', { class: 'empty' }, 'in attesa dei partecipanti...'),
+        qrCanvas,
         el('div', { class: 'counters' },
             el('p', { class: 'counter', 'data-counter': 'participants' }, state.participantCount + ' partecipanti'),
         ),
         el('div', { class: 'link-row' },
             linkInput,
             el('button', { onclick: copyLink }, 'copia'),
-            el('button', { onclick: () => { showQr = true; render(); } }, 'mostra qr'),
         ),
         el('label', { class: 'check-row' },
             el('input', {

@@ -694,7 +694,7 @@ label {
 .qr-canvas {
     display: block;
     margin: 16px auto 0;
-    max-width: 100%;
+    max-width: 300px;
     height: auto;
 }
 
