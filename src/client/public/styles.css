@@ -301,6 +301,11 @@ input[type='range'].result-slider {
     flex-direction: column;
     gap: 8px;
 }
+.text-answers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 .text-order {
     display: flex;
     gap: 8px;
