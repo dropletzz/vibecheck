@@ -703,7 +703,7 @@ label {
     bottom: 8px;
     right: 8px;
     z-index: 20;
-    font-size: 1.2rem;
+    font-size: 1.6rem;
     cursor: pointer;
     user-select: none;
 }
@@ -727,7 +727,7 @@ label {
     margin: 2px 0;
 }
 .emoji-item {
-    font-size: 1.3rem;
+    font-size: 1.6rem;
     cursor: pointer;
     user-select: none;
     transition: transform 0.1s ease;
