@@ -31,16 +31,25 @@ let customPlots: CustomPlot[] = [];
 let lastSectionIndexForPlots: number | null = null;
 
 let reconnectOverlay: HTMLElement | null = null;
+let reconnectTimer: number | null = null;
 
 function showReconnecting() {
-    if (!reconnectOverlay) {
-        reconnectOverlay = elLoading();
-        document.documentElement.append(reconnectOverlay);
-    }
-    reconnectOverlay.classList.remove('reconnect-hidden');
+    if (reconnectTimer !== null) return;
+    reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        if (!reconnectOverlay) {
+            reconnectOverlay = elLoading();
+            document.documentElement.append(reconnectOverlay);
+        }
+        reconnectOverlay.classList.remove('reconnect-hidden');
+    }, 500);
 }
 
 function hideReconnecting() {
+    if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
     if (reconnectOverlay) reconnectOverlay.classList.add('reconnect-hidden');
 }
 

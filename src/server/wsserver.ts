@@ -5,6 +5,7 @@ import { Store } from './store';
 import { ClientMessage, FATAL_CLOSE_CODE, Nonce, QuestionId, ServerMessage, SessionId, UserId, makeId } from '../common';
 
 const VOTE_DELTA_MS = 150;
+const HEARTBEAT_MS = 10000;
 
 interface WsServerConfig {
     server: http.Server | https.Server;
@@ -22,7 +23,22 @@ export class WsServer {
     constructor(config: WsServerConfig) {
         this.store = config.store;
         this.wss = new WebSocketServer({ server: config.server });
-        this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));
+        this.wss.on('connection', (ws, req) => {
+            (ws as any).isAlive = true;
+            ws.on('pong', () => { (ws as any).isAlive = true; });
+            this.handleConnection(ws, req);
+        });
+        setInterval(() => {
+            this.wss.clients.forEach((client) => {
+                const ws = client as any;
+                if (ws.isAlive === false) {
+                    ws.terminate();
+                    return;
+                }
+                ws.isAlive = false;
+                ws.ping();
+            });
+        }, HEARTBEAT_MS);
     }
 
     async start(): Promise<void> {
@@ -193,7 +209,9 @@ export class WsServer {
                     this.broadcastParticipants(sessionId);
                 } catch {}
             });
-            ws.on('close', () => this.presenterSockets.delete(sessionId));
+            ws.on('close', () => {
+                if (this.presenterSockets.get(sessionId) === ws) this.presenterSockets.delete(sessionId);
+            });
             this.sendPresenterState(sessionId);
         } else {
             const cookies = this.parseCookies(req);
@@ -230,12 +248,11 @@ export class WsServer {
                 } catch {}
             });
             ws.on('close', () => {
-                this.store.removeParticipant(sessionId, userId);
                 const map = this.participantSockets.get(sessionId);
-                if (map) {
-                    map.delete(userId);
-                    if (map.size === 0) this.participantSockets.delete(sessionId);
-                }
+                if (!map || map.get(userId) !== ws) return;
+                map.delete(userId);
+                if (map.size === 0) this.participantSockets.delete(sessionId);
+                this.store.removeParticipant(sessionId, userId);
                 this.sendPresenterCounts(sessionId);
             });
             const state = this.store.getParticipantState(sessionId, userId);
