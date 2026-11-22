@@ -1,6 +1,6 @@
 // participant page: answer the current section
 
-import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard, SliderElement } from '../common';
+import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard, sectionHeading, SliderElement } from '../common';
 import { Answer, ParticipantState, Question, QuestionId, SessionId, TextQuestion, throttle } from '../../common';
 import { PersistentWS } from '../wsock';
 
@@ -115,7 +115,7 @@ function renderParticipant(): HTMLElement {
 
     if (state.phase === 'results') {
         const section = state.section;
-        if (section?.title) children.push(el('h2', {}, section.title));
+        if (section) children.push(...sectionHeading(section));
         if (state.results) {
             children.push(el('div', {}, ...renderResults(
                 state.results,
@@ -130,14 +130,14 @@ function renderParticipant(): HTMLElement {
         }
     } else if (state.submitted) {
         const section = state.section;
-        if (section?.title) children.push(el('h2', {}, section.title));
+        if (section) children.push(...sectionHeading(section));
         children.push(el('div', {}, ...(section?.questions || []).map((question) =>
             renderQuestionDisabled(question, myAnswers[question.id] || []),
         )));
         children.push(el('p', { class: 'empty' }, 'risposte inviate'));
     } else {
         const section = state.section;
-        if (section?.title) children.push(el('h2', {}, section.title));
+        if (section) children.push(...sectionHeading(section));
         questionBoxes = (section?.questions || []).map((question) => {
             if (question.kind === 'text' && question.multipleAnswers) {
                 const initial = (myAnswers[question.id] || []).filter((a) => typeof a === 'string') as string[];

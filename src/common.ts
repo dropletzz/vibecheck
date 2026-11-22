@@ -19,6 +19,7 @@ export interface VibecheckModel {
 
 export interface Section {
     title: string; // optional: an empty title is not shown
+    description?: string; // optional: shown below the title
     questions: Question[];
     showResults?: boolean; // participants can see results after the section is closed
 }
@@ -72,7 +73,7 @@ export function makeVibecheck(): VibecheckModel {
 }
 
 export function makeSection(): Section {
-    return { title: '', questions: [], showResults: false };
+    return { title: '', description: '', questions: [], showResults: false };
 }
 
 export function makeQuestion(kind: Question['kind']): Question {
@@ -288,6 +289,7 @@ export function validateVibecheck(raw: any): VibecheckModel {
 function validateSection(raw: any): void {
     if (!raw || typeof raw !== 'object') throw new Error('invalid section');
     if (typeof raw.title !== 'string') throw new Error('invalid section.title');
+    if (raw.description !== undefined && typeof raw.description !== 'string') throw new Error('invalid section.description');
     if (raw.showResults !== undefined && typeof raw.showResults !== 'boolean') throw new Error('invalid section.showResults');
     if (!Array.isArray(raw.questions)) throw new Error('invalid section.questions');
     for (const question of raw.questions) validateQuestion(question);

@@ -1,4 +1,4 @@
-import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard } from '../common';
+import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard, sectionHeading } from '../common';
 import { ChoiceQuestion, ClientMessage, Nonce, PresenterState, Question, QuestionId, SessionId, SummaryState } from '../../common';
 import { PersistentWS } from '../wsock';
 import { renderQrCode } from '../qrcode';
@@ -210,7 +210,7 @@ function renderSummaryView(): HTMLElement {
         ),
     ];
     for (const section of summary.sections) {
-        if (section.section.title) children.push(el('h2', {}, section.section.title));
+        children.push(...sectionHeading(section.section));
         children.push(el('div', {}, ...renderResults(section.results, section.section.questions, render)));
     }
     children.push(el('div', { class: 'nav-row' },
@@ -253,22 +253,22 @@ function renderPresenter(): HTMLElement {
             el('button', { onclick: () => { showQr = true; render(); } }, 'mostra qr'),
         ),
     ];
-    if (section?.title) children.push(el('h2', {}, section.title));
-    children.push(
+    children.push(el('div', { class: 'row space-between' },
         el('div', { class: 'counters' },
             el('p', { class: 'counter', 'data-counter': 'participants' }, state.participantCount + ' partecipanti'),
             el('p', { class: 'counter', 'data-counter': 'answers' }, state.answerCount + ' risposte'),
         ),
-    );
-
-    children.push(el('label', { class: 'check-row' },
-        el('input', {
-            type: 'checkbox',
-            checked: state.emojiBlocked || null,
-            onchange: (event) => send({ type: 'set-emoji-blocked', blocked: (event.target as HTMLInputElement).checked }),
-        }),
-        el('span', {}, 'blocca emoji'),
+        el('label', { class: 'check-row' },
+            el('input', {
+                type: 'checkbox',
+                checked: state.emojiBlocked || null,
+                onchange: (event) => send({ type: 'set-emoji-blocked', blocked: (event.target as HTMLInputElement).checked }),
+            }),
+            el('span', {}, 'blocca emoji'),
+        ),
     ));
+
+    if (section) children.push(...sectionHeading(section));
 
     if (state.phase === 'results') {
         children.push(el('div', {}, ...renderResults(state.results || [], section?.questions || [], render, undefined, undefined, true, censorAnswer)));
@@ -331,7 +331,7 @@ function renderQuestionsModal(): HTMLElement {
     const modal = el('div', { class: 'modal alt-bg' },
         el('button', { class: 'small danger modal-close', title: 'chiudi', onclick: () => { showQuestions = false; render(); } }, '✕'),
     );
-    if (section?.title) modal.append(el('h2', {}, section.title));
+    if (section) modal.append(...sectionHeading(section));
     modal.append(el('div', {}, ...(section?.questions || []).map((question) => renderQuestion(question))));
 
     overlay.append(modal);

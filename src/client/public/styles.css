@@ -450,6 +450,14 @@ label {
 
 .section-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .section-title-input { flex: 1; }
+.section-title {
+    font-size: 1.8rem;
+}
+.section-description {
+    color: var(--text);
+    font-size: 1.2rem;
+    margin: 0 0 8px;
+}
 
 .question-editor {
     position: relative;

@@ -6,6 +6,7 @@ import {
     OppositionQuestion,
     Question,
     QuestionResult,
+    Section,
     SliderResult,
     TextResult,
     VibecheckModel,
@@ -64,6 +65,13 @@ export function renderQuestion(question: Question): HTMLElement {
         ));
     }
     return box;
+}
+
+export function sectionHeading(section: Section): HTMLElement[] {
+    const nodes: HTMLElement[] = [];
+    if (section.title) nodes.push(el('h2', { class: 'section-title' }, section.title));
+    if (section.description) nodes.push(el('p', { class: 'section-description' }, section.description));
+    return nodes;
 }
 
 const MODELS_KEY = 'vibecheck.models';

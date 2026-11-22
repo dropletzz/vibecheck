@@ -14,7 +14,7 @@ import {
     makeVibecheck,
     validateVibecheck,
 } from '../../common';
-import { el, loadModels, makeSlider, renderQuestion, renderResults, saveModels } from '../common';
+import { el, loadModels, makeSlider, renderQuestion, renderResults, saveModels, sectionHeading } from '../common';
 
 let models: VibecheckModel[] = loadModels();
 let view: 'list' | 'edit' | 'results' = 'list';
@@ -374,6 +374,15 @@ function renderSectionEditor(section: Section, sectionIndex: number): HTMLElemen
         },
     });
 
+    const descriptionInput = el('textarea', {
+        rows: '2',
+        placeholder: 'descrizione della sezione (opzionale)',
+        oninput: () => {
+            section.description = descriptionInput.value;
+            saveModels(models);
+        },
+    }, section.description || '');
+
     const questionsBox = el('div', {});
     const renderQuestions = () => {
         questionsBox.replaceChildren(insertQuestionButton(sectionIndex, 0));
@@ -394,6 +403,7 @@ function renderSectionEditor(section: Section, sectionIndex: number): HTMLElemen
                 render(true);
             } }, '✕'),
         ),
+        descriptionInput,
         el('label', { class: 'check-row' },
             el('input', {
                 type: 'checkbox',
@@ -677,7 +687,7 @@ function renderPreviewModal(): HTMLElement {
     if (!section) {
         modal.append(el('p', { class: 'empty' }, 'questo vibecheck non ha ancora sezioni'));
     } else {
-        if (section.title) modal.append(el('h2', {}, section.title));
+        modal.append(...sectionHeading(section));
         if (section.questions.length === 0) {
             modal.append(el('p', { class: 'empty' }, 'questa sezione non ha domande'));
         } else {
@@ -760,7 +770,7 @@ function renderResultsView(): HTMLElement {
         ),
     ];
     for (const section of answersView.sections) {
-        if (section.section.title) children.push(el('h2', {}, section.section.title));
+        children.push(...sectionHeading(section.section));
         children.push(el('div', {}, ...renderResults(section.results, section.section.questions, render)));
     }
     return el('main', { class: 'presenter' }, ...children);
