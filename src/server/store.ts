@@ -399,6 +399,7 @@ export class Store {
             emojiBlocked: !!session.emojiBlocked,
             votingClosed: !!session.votingClosed,
             hasVotable: this.hasVotableQuestions(id),
+            sections: session.vibecheck.sections,
         };
     }
 
@@ -409,6 +410,23 @@ export class Store {
             participantCount: Object.keys(session.participants).length,
             answerCount: this.phase(id) === 'lobby' ? 0 : this.answerCount(id),
         };
+    }
+
+    correlationData(id: SessionId, xSectionIndex: number, xQuestionId: QuestionId, ySectionIndex: number, yQuestionId: QuestionId): { x: number; y: number }[] {
+        const session = this.sessions[id];
+        if (!session) return [];
+        const xAnswers = session.answersBySection[String(xSectionIndex)]?.[xQuestionId];
+        const yAnswers = session.answersBySection[String(ySectionIndex)]?.[yQuestionId];
+        const points: { x: number; y: number }[] = [];
+        if (!xAnswers) return points;
+        for (const [userId, xEntry] of Object.entries(xAnswers)) {
+            const yEntry = yAnswers?.[userId];
+            if (!yEntry) continue;
+            if (typeof xEntry.answer !== 'number' || typeof yEntry.answer !== 'number') continue;
+            if (xEntry.censored || yEntry.censored) continue;
+            points.push({ x: xEntry.answer, y: yEntry.answer });
+        }
+        return points;
     }
 
     getStatus(): { sessions: number; participants: number } {

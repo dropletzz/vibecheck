@@ -164,6 +164,10 @@ export class WsServer {
                         this.store.censorAnswer(sessionId, message.questionId, message.text);
                         this.broadcastCensorDelta(sessionId, message.questionId, message.text);
                         return;
+                    } else if (message.type === 'correlation-request') {
+                        const points = this.store.correlationData(sessionId, message.xSectionIndex, message.xQuestionId, message.ySectionIndex, message.yQuestionId);
+                        this.send(ws, { type: 'correlation-data', plotId: message.plotId, points });
+                        return;
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });

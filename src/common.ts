@@ -130,6 +130,7 @@ export interface PresenterState {
     emojiBlocked: boolean;
     votingClosed: boolean;
     hasVotable: boolean;
+    sections: Section[];
 }
 
 export interface ParticipantState {
@@ -195,7 +196,13 @@ export interface CensorDeltaMessage {
     text: string;
 }
 
-export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent | PresenterCountsMessage | VoteDeltaMessage | CensorDeltaMessage;
+export interface CorrelationDataMessage {
+    type: 'correlation-data';
+    plotId: string;
+    points: { x: number; y: number }[];
+}
+
+export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent | PresenterCountsMessage | VoteDeltaMessage | CensorDeltaMessage | CorrelationDataMessage;
 
 export interface SetSectionMessage {
     type: 'set-section';
@@ -250,7 +257,16 @@ export interface CensorAnswerMessage {
     text: string;
 }
 
-export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage | CloseVotingMessage | CensorAnswerMessage;
+export interface CorrelationRequestMessage {
+    type: 'correlation-request';
+    plotId: string;
+    xSectionIndex: number;
+    xQuestionId: QuestionId;
+    ySectionIndex: number;
+    yQuestionId: QuestionId;
+}
+
+export type ClientMessage = SetSectionMessage | CloseSectionMessage | TerminateMessage | SubmitMessage | SummaryRequestMessage | VoteMessage | StartMessage | EmojiMessage | SetEmojiBlockedMessage | CloseVotingMessage | CensorAnswerMessage | CorrelationRequestMessage;
 
 
 // ---------- validation ----------

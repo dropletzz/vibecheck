@@ -1,8 +1,9 @@
-import { applyCensorDelta, applyVoteDelta, el, elLoading, renderQuestion, renderResults, rerenderQuestionCard } from '../common';
-import { ClientMessage, Nonce, PresenterState, QuestionId, SessionId, SummaryState } from '../../common';
+import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard } from '../common';
+import { ClientMessage, Nonce, PresenterState, Question, QuestionId, SessionId, SummaryState } from '../../common';
 import { PersistentWS } from '../wsock';
 import { renderQrCode } from '../qrcode';
 import { spawnEmoji } from '../animations';
+import { drawScatter2d } from '../plot';
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = (params.get('id') || '') as SessionId;
@@ -13,6 +14,20 @@ let terminated = false;
 let showQuestions = false;
 let showQr = false;
 let summaryState: SummaryState | null = null;
+
+interface CustomPlot {
+    plotId: string;
+    xSectionIndex: number | null;
+    xQuestionId: string | null;
+    ySectionIndex: number | null;
+    yQuestionId: string | null;
+    points: { x: number; y: number }[] | null;
+    aggregate: boolean;
+    clusters: number;
+}
+
+let customPlots: CustomPlot[] = [];
+let lastSectionIndexForPlots: number | null = null;
 
 let reconnectOverlay: HTMLElement | null = null;
 
@@ -34,6 +49,10 @@ const client = new PersistentWS({
     onMessage(message) {
         if (message.type === 'state') {
             state = message.state;
+            if (lastSectionIndexForPlots !== null && state.sectionIndex !== lastSectionIndexForPlots) {
+                customPlots = [];
+            }
+            lastSectionIndexForPlots = state.sectionIndex;
             patchCounters();
             render();
         } else if (message.type === 'presenter-counts') {
@@ -55,6 +74,12 @@ const client = new PersistentWS({
                 if (applyCensorDelta(state.results, section.questions, message.questionId, message.text)) {
                     rerenderQuestionCard(state.results, section.questions, message.questionId, render, undefined, undefined, true, censorAnswer);
                 }
+            }
+        } else if (message.type === 'correlation-data') {
+            const plot = customPlots.find((p) => p.plotId === message.plotId);
+            if (plot) {
+                plot.points = message.points;
+                render();
             }
         } else if (message.type === 'terminated') {
             terminated = true;
@@ -254,6 +279,10 @@ function renderPresenter(): HTMLElement {
                 } }, 'chiudi votazioni'),
             ));
         }
+        for (const plot of customPlots) {
+            children.push(renderCustomPlotCard(plot));
+        }
+        children.push(el('button', { class: 'insert', onclick: addCustomPlot }, '+ grafico'));
     } else {
         children.push(el('div', { class: 'flex-h' },
             el('button', { onclick: () => { showQuestions = true; render(); } }, 'mostra domande'),
@@ -386,6 +415,196 @@ function renderLobbyView(): HTMLElement {
         ),
         el('button', { class: 'big', onclick: () => send({ type: 'start' }) }, 'inizia'),
     );
+}
+
+function numericQuestions(): { sectionIndex: number; question: Question }[] {
+    if (!state) return [];
+    const out: { sectionIndex: number; question: Question }[] = [];
+    state.sections.forEach((section, sectionIndex) => {
+        for (const question of section.questions) {
+            if (question.kind === 'dimension' || question.kind === 'opposition') {
+                out.push({ sectionIndex, question });
+            }
+        }
+    });
+    return out;
+}
+
+function questionLabel(sectionIndex: number, question: Question): string {
+    const section = state?.sections[sectionIndex];
+    const sectionLabel = section?.title || 'sezione ' + (sectionIndex + 1);
+    const title = question.title || question.kind;
+    return sectionLabel + ' · ' + title;
+}
+
+function findQuestion(sectionIndex: number, questionId: string): Question | null {
+    const section = state?.sections[sectionIndex];
+    if (!section) return null;
+    return section.questions.find((q) => q.id === questionId) || null;
+}
+
+function addCustomPlot() {
+    customPlots.push({
+        plotId: 'plot-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+        xSectionIndex: null,
+        xQuestionId: null,
+        ySectionIndex: null,
+        yQuestionId: null,
+        points: null,
+        aggregate: false,
+        clusters: 5,
+    });
+    render();
+}
+
+function renderCustomPlotCard(plot: CustomPlot): HTMLElement {
+    const xOptions = numericQuestions();
+    const xQuestion = plot.xSectionIndex !== null && plot.xQuestionId !== null ? findQuestion(plot.xSectionIndex, plot.xQuestionId) : null;
+    const yQuestion = plot.ySectionIndex !== null && plot.yQuestionId !== null ? findQuestion(plot.ySectionIndex, plot.yQuestionId) : null;
+
+    const header = el('div', { class: 'result-header' },
+        el('h2', {}, 'grafico personalizzato'),
+        el('button', { class: 'small danger', title: 'elimina grafico', onclick: () => {
+            customPlots = customPlots.filter((p) => p.plotId !== plot.plotId);
+            render();
+        } }, '✕'),
+    );
+
+    const xSelect = el('select', {
+        onchange: (event) => {
+            const value = (event.target as HTMLSelectElement).value;
+            if (!value) {
+                plot.xSectionIndex = null;
+                plot.xQuestionId = null;
+            } else {
+                const [sectionIndex, questionId] = value.split(':');
+                plot.xSectionIndex = Number(sectionIndex);
+                plot.xQuestionId = questionId;
+            }
+            plot.ySectionIndex = null;
+            plot.yQuestionId = null;
+            plot.points = null;
+            render();
+        },
+    },
+        el('option', { value: '' }, 'asse x...'),
+        ...xOptions.map((opt) => el('option', {
+            value: opt.sectionIndex + ':' + opt.question.id,
+            selected: (plot.xSectionIndex === opt.sectionIndex && plot.xQuestionId === opt.question.id) || null,
+        }, questionLabel(opt.sectionIndex, opt.question))),
+    );
+
+    const card = el('div', { class: 'card' }, header,
+        el('label', {}, 'asse x'),
+        xSelect,
+    );
+
+    if (plot.xSectionIndex !== null && plot.xQuestionId !== null) {
+        const yOptions = xOptions.filter((opt) => !(opt.sectionIndex === plot.xSectionIndex && opt.question.id === plot.xQuestionId));
+        const ySelect = el('select', {
+            onchange: (event) => {
+                const value = (event.target as HTMLSelectElement).value;
+                if (!value) {
+                    plot.ySectionIndex = null;
+                    plot.yQuestionId = null;
+                } else {
+                    const [sectionIndex, questionId] = value.split(':');
+                    plot.ySectionIndex = Number(sectionIndex);
+                    plot.yQuestionId = questionId;
+                }
+                plot.points = null;
+                if (plot.xSectionIndex !== null && plot.xQuestionId !== null && plot.ySectionIndex !== null && plot.yQuestionId !== null) {
+                    send({
+                        type: 'correlation-request',
+                        plotId: plot.plotId,
+                        xSectionIndex: plot.xSectionIndex,
+                        xQuestionId: plot.xQuestionId as QuestionId,
+                        ySectionIndex: plot.ySectionIndex,
+                        yQuestionId: plot.yQuestionId as QuestionId,
+                    });
+                }
+                render();
+            },
+        },
+            el('option', { value: '' }, 'asse y...'),
+            ...yOptions.map((opt) => el('option', {
+                value: opt.sectionIndex + ':' + opt.question.id,
+                selected: (plot.ySectionIndex === opt.sectionIndex && plot.yQuestionId === opt.question.id) || null,
+            }, questionLabel(opt.sectionIndex, opt.question))),
+        );
+        card.append(el('label', {}, 'asse y'), ySelect);
+    }
+
+    if (plot.points && xQuestion && yQuestion && (xQuestion.kind === 'dimension' || xQuestion.kind === 'opposition') && (yQuestion.kind === 'dimension' || yQuestion.kind === 'opposition')) {
+        card.append(renderCustomPlotGraph(plot, xQuestion, yQuestion));
+    } else if (plot.xSectionIndex !== null && plot.xQuestionId !== null && plot.ySectionIndex !== null && plot.yQuestionId !== null) {
+        card.append(el('p', { class: 'muted' }, 'caricamento...'));
+    }
+
+    return card;
+}
+
+function renderCustomPlotGraph(plot: CustomPlot, xQuestion: Question, yQuestion: Question): HTMLElement {
+    if (xQuestion.kind !== 'dimension' && xQuestion.kind !== 'opposition') return el('div', {});
+    if (yQuestion.kind !== 'dimension' && yQuestion.kind !== 'opposition') return el('div', {});
+
+    const xMin = xQuestion.kind === 'dimension' ? 0 : -1;
+    const yMin = yQuestion.kind === 'dimension' ? 0 : -1;
+
+    const canvas = el('canvas', { class: 'result-canvas' });
+    canvas.width = 400;
+    canvas.height = 400;
+
+    const draw = (aggregate: boolean, k: number) => {
+        const dpr = window.devicePixelRatio || 1;
+        const cssWidth = canvas.getBoundingClientRect().width;
+        canvas.width = Math.round(cssWidth * dpr);
+        canvas.height = Math.round(cssWidth * dpr);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawScatter2d(ctx, cssWidth, cssWidth, plot.points || [], xMin, 1, yMin, 1,
+            xQuestion.minLabel || String(xMin), xQuestion.maxLabel || '1',
+            yQuestion.minLabel || String(yMin), yQuestion.maxLabel || '1',
+            xQuestion.title || '', yQuestion.title || '',
+            aggregate, k);
+    };
+
+    requestAnimationFrame(() => {
+        if (canvas.isConnected) draw(plot.aggregate, plot.clusters);
+    });
+
+    const controls = el('div', {},
+        el('label', { class: 'check-row' },
+            el('input', {
+                type: 'checkbox',
+                checked: plot.aggregate || null,
+                onchange: () => {
+                    plot.aggregate = !plot.aggregate;
+                    render();
+                },
+            }),
+            el('span', {}, 'aggrega'),
+        ),
+    );
+
+    if (plot.aggregate) {
+        const clustersLabel = el('label', {}, 'numero punti: ' + plot.clusters);
+        const clustersSlider = makeSlider({
+            value: plot.clusters,
+            min: 2,
+            max: 10,
+            step: 1,
+            onChange: (value) => {
+                plot.clusters = value;
+                clustersLabel.textContent = 'numero punti: ' + value;
+                draw(plot.aggregate, value);
+            },
+        });
+        controls.append(clustersLabel, clustersSlider);
+    }
+
+    return el('div', {}, canvas, controls);
 }
 
 function censorAnswer(questionId: string, text: string) {

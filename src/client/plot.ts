@@ -45,6 +45,32 @@ export function drawHorizontalAxis(ctx: CanvasRenderingContext2D, leftX: number,
     ctx.fillText(maxLabel, rightX, y + labelOffset);
 }
 
+// vertical axis with ticks at both ends and in the middle, labels to the left
+export function drawVerticalAxis(ctx: CanvasRenderingContext2D, x: number, topY: number, bottomY: number, minLabel: string, maxLabel: string): void {
+    ctx.strokeStyle = AXIS_COLOR;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, topY);
+    ctx.lineTo(x, bottomY);
+    ctx.stroke();
+
+    const tickLength = 5;
+    ctx.beginPath();
+    for (const y of [topY, (topY + bottomY) / 2, bottomY]) {
+        ctx.moveTo(x - tickLength, y);
+        ctx.lineTo(x + tickLength, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = AXIS_COLOR;
+    ctx.font = '14px ' + fontFamily();
+    const labelOffset = tickLength + 4;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+    ctx.fillText(maxLabel, x - labelOffset, topY);
+    ctx.fillText(minLabel, x - labelOffset, bottomY);
+}
+
 // discrete density (histogram-like vertical bars)
 export function drawDiscreteDensity(ctx: CanvasRenderingContext2D, width: number, height: number, values: number[], min: number, max: number, minLabel: string, maxLabel: string, bars: number): void {
     ctx.clearRect(0, 0, width, height);
@@ -183,6 +209,71 @@ export function drawScatter1d(ctx: CanvasRenderingContext2D, width: number, heig
     }
 }
 
+// 2d scatter plot with optional k-means aggregation
+export function drawScatter2d(ctx: CanvasRenderingContext2D, width: number, height: number, points: { x: number; y: number }[], xMin: number, xMax: number, yMin: number, yMax: number, xMinLabel: string, xMaxLabel: string, yMinLabel: string, yMaxLabel: string, xTitle: string, yTitle: string, aggregate: boolean, k: number): void {
+    ctx.clearRect(0, 0, width, height);
+
+    const color = accentColor();
+    const leftPadding = 64;
+    const rightPadding = 16;
+    const topPadding = 16;
+    const bottomPadding = 58;
+
+    const plotLeft = leftPadding;
+    const plotRight = width - rightPadding;
+    const plotTop = topPadding;
+    const plotBottom = height - bottomPadding;
+    const plotWidth = plotRight - plotLeft;
+    const plotHeight = plotBottom - plotTop;
+
+    const mapX = (value: number) => plotLeft + ((value - xMin) / (xMax - xMin)) * plotWidth;
+    const mapY = (value: number) => plotBottom - ((value - yMin) / (yMax - yMin)) * plotHeight;
+
+    drawHorizontalAxis(ctx, plotLeft, plotRight, plotBottom, xMinLabel, xMaxLabel);
+    drawVerticalAxis(ctx, plotLeft, plotTop, plotBottom, yMinLabel, yMaxLabel);
+
+    ctx.fillStyle = AXIS_COLOR;
+    ctx.font = '14px ' + fontFamily();
+
+    if (xTitle) {
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(xTitle, (plotLeft + plotRight) / 2, plotBottom + 36);
+    }
+
+    if (yTitle) {
+        ctx.save();
+        ctx.translate(plotLeft - 44, (plotTop + plotBottom) / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(yTitle, 0, 0);
+        ctx.restore();
+    }
+
+    if (aggregate) {
+        const clusters = kmeans2d(points, Math.min(k, Math.max(1, points.length)));
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.35;
+        for (const cluster of clusters) {
+            const radius = 10 * Math.sqrt(cluster.count);
+            ctx.beginPath();
+            ctx.arc(mapX(cluster.center.x), mapY(cluster.center.y), radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    } else {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.35;
+        for (const point of points) {
+            ctx.beginPath();
+            ctx.arc(mapX(point.x), mapY(point.y), 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+}
+
 // horizontal barplot (used by choice questions)
 export function drawBarplot(ctx: CanvasRenderingContext2D, width: number, height: number, entries: [string, number][]): void {
     ctx.clearRect(0, 0, width, height);
@@ -271,4 +362,72 @@ function kmeans1d(values: number[], k: number): { center: number; count: number 
         .map((center, i) => ({ center, count: counts[i] }))
         .filter((cluster) => cluster.count > 0)
         .sort((a, b) => a.center - b.center);
+}
+
+function kmeans2d(points: { x: number; y: number }[], k: number): { center: { x: number; y: number }; count: number }[] {
+    if (points.length === 0) return [];
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    const centroids: { x: number; y: number }[] = [];
+    for (let i = 0; i < k; i++) {
+        centroids.push({
+            x: minX + ((i + 0.5) / k) * (maxX - minX),
+            y: minY + ((i + 0.5) / k) * (maxY - minY),
+        });
+    }
+
+    for (let iter = 0; iter < 30; iter++) {
+        const sums = Array.from({ length: k }, () => ({ x: 0, y: 0 }));
+        const counts = new Array(k).fill(0);
+        for (const point of points) {
+            let best = 0;
+            let bestDist = Infinity;
+            for (let c = 0; c < k; c++) {
+                const dx = point.x - centroids[c].x;
+                const dy = point.y - centroids[c].y;
+                const dist = dx * dx + dy * dy;
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = c;
+                }
+            }
+            sums[best].x += point.x;
+            sums[best].y += point.y;
+            counts[best]++;
+        }
+        let moved = false;
+        for (let c = 0; c < k; c++) {
+            if (counts[c] > 0) {
+                const next = { x: sums[c].x / counts[c], y: sums[c].y / counts[c] };
+                if (Math.abs(next.x - centroids[c].x) > 1e-9 || Math.abs(next.y - centroids[c].y) > 1e-9) moved = true;
+                centroids[c] = next;
+            }
+        }
+        if (!moved) break;
+    }
+
+    const counts = new Array(k).fill(0);
+    for (const point of points) {
+        let best = 0;
+        let bestDist = Infinity;
+        for (let c = 0; c < k; c++) {
+            const dx = point.x - centroids[c].x;
+            const dy = point.y - centroids[c].y;
+            const dist = dx * dx + dy * dy;
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = c;
+            }
+        }
+        counts[best]++;
+    }
+
+    return centroids
+        .map((center, i) => ({ center, count: counts[i] }))
+        .filter((cluster) => cluster.count > 0);
 }

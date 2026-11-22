@@ -85,12 +85,29 @@ do not store ws sockets in the Store class, the Store should know absolutely not
 
 we wanna make new kinds of plots and allow the presenter to create custom plots that correlate multiple question results. put all the plotting functions in src/client/plot.ts (they take as arguments canvas ctx and all other parameters necessary for the plot). try to split the code into functions that can be reused in for different kinds of graph (for example a drawHorizontalAxis)
 
-## iterations 4.1 - new numeric plots
+## iteration 4.1 - new numeric plots
 For numeric answers (dimension and opposition):
 * 1d scatter plot: one horizontal axis with transparent dots scattered along the line (more transparent the more answers there are). there is a checkbox 'aggrega' that does a k-means (or something like that) to group the dots, in the plot the surface of the dots is proportional to the number of elements in them.
 * continuous density plot
 
 the default graph becomes the 1d scatter (remove the slided with avg).
 instead of the 'riepilogo'/'dettaglio' button there will be two small buttons with arrows that move between the 3 kinds of graph (1d scatter, discrete density, continuous density).
+
+## iteration 4.2 - correlation plots
+the presenter, when viewing a section's results, should be able to create custom plots that contain multiple questioms.
+one question goes on the x-axis, another on the y-axis. only some combinations of question kinds are possible:
+* x: numeric, y: numeric => 2d scatter plot with k-means aggregation (ui exactly like in the 1d graph)
+* x: choice, y: choice => stacked histogram, one bar for each x, bar divided in colors based on y (color legend for y on the top right)
+* x: numeric, y: choice => same as the previous one (stacked histogram) but on the x it's like a discrete density plot, with slider to adjust number of bars
+* x: choice, y: numeric => histogram where the height of the bar is the average y value
+
+when numeric question is on the y there should be a y axis drawn showing the labels.
+for now let's ignore choice questions that allow multiple answers as they might be tricky to handle.
+
+when the presenter is viewing a section reults, add '+ grafico' after the last question, itlooks like the '+ sezione' in the model editor. when clicked it immediately creates a new card where the user cans to select which answer to put on the x axis, after that the user can select what to put on the y axis, then the graph is shown.
+only questions that will result in one of the possible graphs should be selectable, questions from previous sections should be available as well.
+graphs created like this are ephemeral, they only exist in the current presenter state (on the client) and are lost upon moving to the next or previous state. they can be deleted, too ('x' red button on top right)
+
+correlation data should be asked by the presenter to the server only when needed (a custom plot is created), it should be raw, all the processing/counting/averaging will be done on the client.
 
 
