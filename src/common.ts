@@ -199,7 +199,7 @@ export interface CensorDeltaMessage {
 export interface CorrelationDataMessage {
     type: 'correlation-data';
     plotId: string;
-    points: { x: number; y: number }[];
+    points: { x: number | string; y: number | string }[];
 }
 
 export type ServerMessage = StateMessage | ParticipantStateMessage | TerminatedMessage | SummaryMessage | EmojiEvent | PresenterCountsMessage | VoteDeltaMessage | CensorDeltaMessage | CorrelationDataMessage;

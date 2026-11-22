@@ -412,19 +412,22 @@ export class Store {
         };
     }
 
-    correlationData(id: SessionId, xSectionIndex: number, xQuestionId: QuestionId, ySectionIndex: number, yQuestionId: QuestionId): { x: number; y: number }[] {
+    correlationData(id: SessionId, xSectionIndex: number, xQuestionId: QuestionId, ySectionIndex: number, yQuestionId: QuestionId): { x: number | string; y: number | string }[] {
         const session = this.sessions[id];
         if (!session) return [];
         const xAnswers = session.answersBySection[String(xSectionIndex)]?.[xQuestionId];
         const yAnswers = session.answersBySection[String(ySectionIndex)]?.[yQuestionId];
-        const points: { x: number; y: number }[] = [];
+        const points: { x: number | string; y: number | string }[] = [];
         if (!xAnswers) return points;
         for (const [userId, xEntry] of Object.entries(xAnswers)) {
             const yEntry = yAnswers?.[userId];
             if (!yEntry) continue;
-            if (typeof xEntry.answer !== 'number' || typeof yEntry.answer !== 'number') continue;
+            const xValue = xEntry.answer;
+            const yValue = yEntry.answer;
+            if (Array.isArray(xValue) || Array.isArray(yValue)) continue;
+            if ((typeof xValue !== 'number' && typeof xValue !== 'string') || (typeof yValue !== 'number' && typeof yValue !== 'string')) continue;
             if (xEntry.censored || yEntry.censored) continue;
-            points.push({ x: xEntry.answer, y: yEntry.answer });
+            points.push({ x: xValue, y: yValue });
         }
         return points;
     }

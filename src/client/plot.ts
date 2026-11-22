@@ -16,6 +16,12 @@ function fontFamily(): string {
     return getCssVar('--main-font') || 'sans-serif';
 }
 
+function getColor(index: number): string {
+    const goldenAngle = 137.508;
+    const hue = (45 + index * goldenAngle) % 360;
+    return `hsl(${hue}, 100%, 75%)`;
+}
+
 const AXIS_COLOR = '#000000';
 
 // horizontal axis with ticks at both ends and in the middle (above and below), labels below
@@ -84,7 +90,6 @@ export function drawDiscreteDensity(ctx: CanvasRenderingContext2D, width: number
         counts[index]++;
     }
     const maxCount = Math.max(1, ...counts);
-    const total = values.length;
 
     const color = accentColor();
 
@@ -109,12 +114,11 @@ export function drawDiscreteDensity(ctx: CanvasRenderingContext2D, width: number
         ctx.strokeRect(x, y, barWidth, barHeight);
 
         if (counts[i] > 0) {
-            const percent = Math.round((counts[i] / total) * 100);
             ctx.fillStyle = AXIS_COLOR;
             ctx.font = '13px ' + fontFamily();
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.fillText(percent + '%', x + barWidth / 2, y - 2);
+            ctx.fillText(String(counts[i]), x + barWidth / 2, y - 2);
             ctx.fillStyle = color;
         }
     }
@@ -280,7 +284,6 @@ export function drawBarplot(ctx: CanvasRenderingContext2D, width: number, height
 
     const rowHeight = height / entries.length;
     const maxCount = Math.max(1, ...entries.map(([, count]) => count));
-    const total = entries.reduce((sum, [, count]) => sum + count, 0);
     const barColor = accentColor();
     const labelTextColor = textColor();
     const labelWidth = 110;
@@ -294,6 +297,9 @@ export function drawBarplot(ctx: CanvasRenderingContext2D, width: number, height
 
         ctx.fillStyle = barColor;
         ctx.fillRect(labelWidth, barY, barWidth > 0 ? barWidth : 1, barHeight);
+        ctx.strokeStyle = AXIS_COLOR;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(labelWidth, barY, barWidth > 0 ? barWidth : 1, barHeight);
 
         ctx.fillStyle = labelTextColor;
         ctx.font = '14px ' + fontFamily();
@@ -302,10 +308,250 @@ export function drawBarplot(ctx: CanvasRenderingContext2D, width: number, height
         const shortLabel = label.length > 12 ? label.slice(0, 12) + '…' : label;
         ctx.fillText(shortLabel, labelWidth - 8, y + rowHeight / 2);
 
-        const percent = total > 0 ? Math.round((count / total) * 100) : 0;
         ctx.textAlign = 'left';
-        ctx.fillText(percent + '%', labelWidth + barWidth + 6, y + rowHeight / 2);
+        ctx.fillText(String(count), labelWidth + barWidth + 6, y + rowHeight / 2);
     });
+}
+
+function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, choices: string[]): void {
+    ctx.font = '13px ' + fontFamily();
+    let itemY = y;
+    for (let i = 0; i < choices.length; i++) {
+        ctx.fillStyle = getColor(i);
+        ctx.fillRect(x, itemY, 12, 12);
+        ctx.fillStyle = textColor();
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const label = choices[i].length > 14 ? choices[i].slice(0, 14) + '…' : choices[i];
+        ctx.fillText(label, x + 16, itemY);
+        itemY += 18;
+    }
+}
+
+export function drawStackedHistogram(ctx: CanvasRenderingContext2D, width: number, height: number, xChoices: string[], yChoices: string[], xTitle: string, yTitle: string, points: { x: string; y: string }[]): void {
+    ctx.clearRect(0, 0, width, height);
+
+    const matrix = xChoices.map(() => new Array(yChoices.length).fill(0));
+    for (const point of points) {
+        const xi = xChoices.indexOf(point.x);
+        const yi = yChoices.indexOf(point.y);
+        if (xi >= 0 && yi >= 0) matrix[xi][yi]++;
+    }
+    const totals = matrix.map((row) => row.reduce((sum, count) => sum + count, 0));
+    const maxTotal = Math.max(1, ...totals);
+
+    const legendWidth = 150;
+    const legendX = width - legendWidth - 8;
+    let legendY = 12;
+
+    if (yTitle) {
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.font = '14px ' + fontFamily();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(yTitle, legendX + legendWidth / 2, legendY);
+        legendY += 20;
+    }
+
+    drawLegend(ctx, legendX, legendY, yChoices);
+
+    const leftPadding = 16;
+    const rightPadding = 16;
+    const topPadding = legendY + yChoices.length * 18 + 8;
+    const bottomPadding = 58;
+
+    const plotLeft = leftPadding;
+    const plotRight = width - rightPadding;
+    const plotTop = topPadding;
+    const plotBottom = height - bottomPadding;
+    const plotWidth = plotRight - plotLeft;
+    const plotHeight = plotBottom - plotTop;
+
+    const slot = plotWidth / Math.max(1, xChoices.length);
+    const barWidth = slot * 0.7;
+
+    ctx.font = '13px ' + fontFamily();
+
+    for (let i = 0; i < xChoices.length; i++) {
+        const barX = plotLeft + i * slot + (slot - barWidth) / 2;
+        let y = plotBottom;
+        for (let j = 0; j < yChoices.length; j++) {
+            const segmentHeight = (matrix[i][j] / maxTotal) * plotHeight;
+            if (segmentHeight > 0) {
+                ctx.fillStyle = getColor(j);
+                ctx.fillRect(barX, y - segmentHeight, barWidth, segmentHeight);
+                ctx.strokeStyle = AXIS_COLOR;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, y - segmentHeight, barWidth, segmentHeight);
+                y -= segmentHeight;
+            }
+        }
+
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(String(totals[i]), barX + barWidth / 2, plotBottom - (totals[i] / maxTotal) * plotHeight - 4);
+
+        ctx.textBaseline = 'top';
+        const label = xChoices[i].length > 12 ? xChoices[i].slice(0, 12) + '…' : xChoices[i];
+        ctx.fillText(label, barX + barWidth / 2, plotBottom + 6);
+    }
+
+    if (xTitle) {
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.font = '14px ' + fontFamily();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(xTitle, (plotLeft + plotRight) / 2, plotBottom + 36);
+    }
+}
+
+export function drawBinnedStackedHistogram(ctx: CanvasRenderingContext2D, width: number, height: number, xMin: number, xMax: number, xMinLabel: string, xMaxLabel: string, xTitle: string, yChoices: string[], points: { x: number; y: string }[], bars: number): void {
+    ctx.clearRect(0, 0, width, height);
+
+    const binWidth = (xMax - xMin) / bars;
+    const matrix = new Array(bars).fill(null).map(() => new Array(yChoices.length).fill(0));
+    for (const point of points) {
+        let index = Math.floor((point.x - xMin) / binWidth);
+        if (index < 0) index = 0;
+        if (index >= bars) index = bars - 1;
+        const yi = yChoices.indexOf(point.y);
+        if (yi >= 0) matrix[index][yi]++;
+    }
+    const totals = matrix.map((row) => row.reduce((sum, count) => sum + count, 0));
+    const maxTotal = Math.max(1, ...totals);
+
+    const legendWidth = 150;
+    const legendHeight = yChoices.length * 18 + 8;
+    drawLegend(ctx, width - legendWidth - 8, 8, yChoices);
+
+    const leftPadding = 16;
+    const rightPadding = 16;
+    const topPadding = legendHeight + 26;
+    const bottomPadding = 58;
+
+    const plotLeft = leftPadding;
+    const plotRight = width - rightPadding;
+    const plotTop = topPadding;
+    const plotBottom = height - bottomPadding;
+    const plotWidth = plotRight - plotLeft;
+    const plotHeight = plotBottom - plotTop;
+
+    drawHorizontalAxis(ctx, plotLeft, plotRight, plotBottom, xMinLabel, xMaxLabel);
+
+    if (xTitle) {
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.font = '14px ' + fontFamily();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(xTitle, (plotLeft + plotRight) / 2, plotBottom + 36);
+    }
+
+    const slot = plotWidth / bars;
+    const barWidth = slot;
+
+    ctx.font = '13px ' + fontFamily();
+    for (let i = 0; i < bars; i++) {
+        const barX = plotLeft + i * slot;
+        let y = plotBottom;
+        for (let j = 0; j < yChoices.length; j++) {
+            const segmentHeight = (matrix[i][j] / maxTotal) * plotHeight;
+            if (segmentHeight > 0) {
+                ctx.fillStyle = getColor(j);
+                ctx.fillRect(barX, y - segmentHeight, barWidth, segmentHeight);
+                ctx.strokeStyle = AXIS_COLOR;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, y - segmentHeight, barWidth, segmentHeight);
+                y -= segmentHeight;
+            }
+        }
+        if (totals[i] > 0) {
+            ctx.fillStyle = AXIS_COLOR;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(String(totals[i]), barX + barWidth / 2, plotBottom - (totals[i] / maxTotal) * plotHeight - 4);
+        }
+    }
+}
+
+export function drawAverageBarplot(ctx: CanvasRenderingContext2D, width: number, height: number, xChoices: string[], yMin: number, yMax: number, yMinLabel: string, yMaxLabel: string, yTitle: string, xTitle: string, points: { x: string; y: number }[]): void {
+    ctx.clearRect(0, 0, width, height);
+
+    const sums = new Array(xChoices.length).fill(0);
+    const counts = new Array(xChoices.length).fill(0);
+    for (const point of points) {
+        const xi = xChoices.indexOf(point.x);
+        if (xi >= 0) {
+            sums[xi] += point.y;
+            counts[xi]++;
+        }
+    }
+    const averages = sums.map((sum, i) => (counts[i] > 0 ? sum / counts[i] : null));
+
+    const leftPadding = 64;
+    const rightPadding = 16;
+    const topPadding = 16;
+    const bottomPadding = 58;
+
+    const plotLeft = leftPadding;
+    const plotRight = width - rightPadding;
+    const plotTop = topPadding;
+    const plotBottom = height - bottomPadding;
+    const plotWidth = plotRight - plotLeft;
+    const plotHeight = plotBottom - plotTop;
+
+    drawVerticalAxis(ctx, plotLeft, plotTop, plotBottom, yMinLabel, yMaxLabel);
+
+    if (yTitle) {
+        ctx.save();
+        ctx.translate(plotLeft - 44, (plotTop + plotBottom) / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.font = '14px ' + fontFamily();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(yTitle, 0, 0);
+        ctx.restore();
+    }
+
+    if (xTitle) {
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.font = '14px ' + fontFamily();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(xTitle, (plotLeft + plotRight) / 2, plotBottom + 36);
+    }
+
+    const baseline = Math.max(yMin, Math.min(yMax, 0));
+    const mapY = (value: number) => plotBottom - ((value - yMin) / (yMax - yMin)) * plotHeight;
+    const baselineY = mapY(baseline);
+
+    const slot = plotWidth / Math.max(1, xChoices.length);
+    const barWidth = slot * 0.7;
+
+    ctx.font = '13px ' + fontFamily();
+
+    for (let i = 0; i < xChoices.length; i++) {
+        const barX = plotLeft + i * slot + (slot - barWidth) / 2;
+        const average = averages[i];
+
+        if (average !== null) {
+            const averageY = mapY(average);
+            const barY = Math.min(baselineY, averageY);
+            const barHeight = Math.max(1, Math.abs(baselineY - averageY));
+            ctx.fillStyle = accentColor();
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+            ctx.strokeStyle = AXIS_COLOR;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barX, barY, barWidth, barHeight);
+        }
+
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const label = xChoices[i].length > 12 ? xChoices[i].slice(0, 12) + '…' : xChoices[i];
+        ctx.fillText(label, barX + barWidth / 2, plotBottom + 6);
+    }
 }
 
 function kmeans1d(values: number[], k: number): { center: number; count: number }[] {
