@@ -26,9 +26,9 @@ let answersView: { vibecheck: VibecheckModel; sections: { section: Section; resu
 const PREDEFINED_SLURS = [
     'negro', 'negra', 'negri', 'negre',
     'giauro', 'giaura', 'giauri', 'giaure',
-    'frocio', 'frocia', 'froci',
+    'frocio', 'frocia', 'froci', 'frocie',
     'culattone', 'culattoni',
-    'troia', 'troie', 'puttana', 'puttane', 'puttano', 'puttani',
+    'troia', 'troie', 'puttana', 'puttane',
     'bastardo', 'bastarda', 'bastardi', 'bastarde',
     'coglione', 'coglioni', 'cogliona',
     'stronzo', 'stronza', 'stronzi', 'stronze',
@@ -294,14 +294,31 @@ function renderEdit(): HTMLElement {
 function renderCensorToggle(vibecheck: VibecheckModel): HTMLElement {
     const listBox = el('div', { class: 'chips' });
     const input = el('input', { type: 'text', placeholder: 'parola da censurare' });
+    const summary = el('p', { class: 'muted' });
+    let editing = false;
+
+    const addRow = el('div', { class: 'link-row' },
+        input,
+        el('button', { class: 'small', onclick: addWord }, 'aggiungi'),
+    );
+    const editArea = el('div', {}, addRow, listBox);
+    const editButton = el('button', { class: 'small', onclick: () => { editing = !editing; refresh(); } }, 'modifica parole');
 
     function refresh() {
         const enabled = Array.isArray(vibecheck.censoredWords);
-        listBox.replaceChildren();
-        addRow.style.display = enabled ? '' : 'none';
-        listBox.style.display = enabled ? '' : 'none';
+        const words = vibecheck.censoredWords || [];
+
+        editButton.style.display = enabled ? '' : 'none';
+        summary.style.display = enabled && !editing ? '' : 'none';
+        editArea.style.display = enabled && editing ? '' : 'none';
+
         if (enabled) {
-            for (const word of vibecheck.censoredWords || []) {
+            summary.textContent = words.length === 1
+                ? '1 parola sarà censurata'
+                : words.length + ' parole saranno censurate';
+            editButton.textContent = editing ? 'chiudi' : 'modifica parole';
+            listBox.replaceChildren();
+            for (const word of words) {
                 listBox.append(el('span', { class: 'chip censor-word' },
                     word,
                     el('button', { class: 'small danger', title: 'rimuovi parola', onclick: () => {
@@ -324,29 +341,29 @@ function renderCensorToggle(vibecheck: VibecheckModel): HTMLElement {
         refresh();
     }
 
-    const addRow = el('div', { class: 'link-row' },
-        input,
-        el('button', { class: 'small', onclick: addWord }, 'aggiungi'),
-    );
-
     const checkbox = el('input', {
         type: 'checkbox',
         checked: Array.isArray(vibecheck.censoredWords) || null,
         onchange: (event) => {
             const checked = (event.target as HTMLInputElement).checked;
             vibecheck.censoredWords = checked ? [...PREDEFINED_SLURS] : undefined;
+            editing = false;
             saveModels(models);
             refresh();
         },
     });
 
+    const headerRow = el('div', { class: 'row space-between' },
+        el('label', { class: 'check-row' }, checkbox, el('span', {}, 'censura parole')),
+        editButton,
+    );
+
     refresh();
 
     return el('div', { class: 'censor-box' },
-        el('h3', {}, 'parole censurate'),
-        el('label', { class: 'check-row' }, checkbox, el('span', {}, 'censura parole')),
-        addRow,
-        listBox,
+        headerRow,
+        summary,
+        editArea,
     );
 }
 
