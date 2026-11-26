@@ -60,7 +60,6 @@ export interface TextQuestion extends BaseQuestion {
 export interface ChoiceQuestion extends BaseQuestion {
     kind: 'choice';
     multipleChoices: boolean;
-    maxAnswers: number; // 2..42, used when multipleChoices
     choices: string[];
 }
 
@@ -86,7 +85,7 @@ export function makeQuestion(kind: Question['kind']): Question {
         case 'text':
             return { id, kind, title: '', maxLength: 200, multipleAnswers: false, maxAnswers: 5, votable: false };
         case 'choice':
-            return { id, kind, title: '', multipleChoices: false, maxAnswers: 5, choices: ['', ''] };
+            return { id, kind, title: '', multipleChoices: false, choices: ['', ''] };
     }
 }
 
@@ -319,9 +318,6 @@ function validateQuestion(raw: any): void {
             break;
         case 'choice':
             if (typeof raw.multipleChoices !== 'boolean') throw new Error('invalid question.multipleChoices');
-            if (typeof raw.maxAnswers !== 'number' || !Number.isFinite(raw.maxAnswers) || raw.maxAnswers < 2 || raw.maxAnswers > MAX_MULTIPLE_ANSWERS) {
-                throw new Error('invalid question.maxAnswers');
-            }
             if (!Array.isArray(raw.choices) || !raw.choices.every((choice: any) => typeof choice === 'string')) {
                 throw new Error('invalid question.choices');
             }

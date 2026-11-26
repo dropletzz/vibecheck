@@ -338,8 +338,7 @@ export class Store {
         for (const question of section.questions) {
             const answer = answers[question.id];
             if (!Array.isArray(answer)) continue;
-            if (question.kind !== 'text' && question.kind !== 'choice') continue;
-            if (answer.length > question.maxAnswers) return;
+            if (question.kind === 'text' && answer.length > question.maxAnswers) return;
         }
 
         const sectionKey = String(session.sectionIndex);

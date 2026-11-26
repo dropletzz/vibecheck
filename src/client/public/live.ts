@@ -457,8 +457,7 @@ function submit() {
     for (const question of section.questions) {
         const value = answers[question.id];
         if (!Array.isArray(value)) continue;
-        if (question.kind !== 'text' && question.kind !== 'choice') continue;
-        if (value.length > question.maxAnswers) {
+        if (question.kind === 'text' && value.length > question.maxAnswers) {
             alert('troppe risposte: massimo ' + question.maxAnswers + ' per questa domanda');
             return;
         }

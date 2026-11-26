@@ -648,27 +648,11 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
         ));
     });
 
-    const maxAnswersLabel = el('label', {}, 'risposte massime: ' + question.maxAnswers);
-    const maxAnswersRange = makeSlider({
-        value: question.maxAnswers,
-        min: 2,
-        max: MAX_MULTIPLE_ANSWERS,
-        step: 1,
-        onChange: (value) => {
-            question.maxAnswers = value;
-            maxAnswersLabel.textContent = 'risposte massime: ' + question.maxAnswers;
-            saveModels(models);
-        },
-    });
-    const maxAnswersBox = el('div', {}, maxAnswersLabel, maxAnswersRange);
-    maxAnswersBox.style.display = question.multipleChoices ? 'block' : 'none';
-
     const multipleCheckbox = el('input', {
         type: 'checkbox',
         checked: question.multipleChoices || null,
         onchange: (event: Event) => {
             question.multipleChoices = (event.target as HTMLInputElement).checked;
-            maxAnswersBox.style.display = question.multipleChoices ? 'block' : 'none';
             saveModels(models);
         },
     });
@@ -681,7 +665,6 @@ function renderChoiceFields(question: ChoiceQuestion): HTMLElement {
             render(true);
         } }, '+ aggiungi opzione'),
         el('label', { class: 'check-row' }, multipleCheckbox, el('span', {}, 'consenti scelta multipla')),
-        maxAnswersBox,
     );
 }
 
