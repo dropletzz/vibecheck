@@ -440,6 +440,13 @@ label {
 
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .space-between { justify-content: space-between; }
+.select-col {
+    flex: 1;
+    min-width: 0;
+}
+.select-col select {
+    width: 100%;
+}
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 20px; }
 

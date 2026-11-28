@@ -1,5 +1,5 @@
 import { applyCensorDelta, applyVoteDelta, el, elLoading, makeSlider, renderQuestion, renderResults, rerenderQuestionCard, sectionHeading } from '../common';
-import { ChoiceQuestion, ClientMessage, Nonce, PresenterState, Question, QuestionId, SessionId, SummaryState } from '../../common';
+import { ChoiceQuestion, ClientMessage, Nonce, PresenterState, Question, QuestionId, QuestionResult, SessionId, SummaryState } from '../../common';
 import { PersistentWS } from '../wsock';
 import { renderQrCode } from '../qrcode';
 import { spawnEmoji } from '../animations';
@@ -21,6 +21,7 @@ interface CustomPlot {
     xQuestionId: string | null;
     ySectionIndex: number | null;
     yQuestionId: string | null;
+    singleResult: QuestionResult | null;
     points: { x: number | string; y: number | string }[] | null;
     aggregate: boolean;
     clusters: number;
@@ -89,6 +90,12 @@ const client = new PersistentWS({
             const plot = customPlots.find((p) => p.plotId === message.plotId);
             if (plot) {
                 plot.points = message.points;
+                render();
+            }
+        } else if (message.type === 'single-result') {
+            const plot = customPlots.find((p) => p.plotId === message.plotId);
+            if (plot) {
+                plot.singleResult = message.result;
                 render();
             }
         } else if (message.type === 'terminated') {
@@ -443,6 +450,22 @@ function plotQuestions(): { sectionIndex: number; question: Question }[] {
     return out;
 }
 
+function allQuestions(): { sectionIndex: number; question: Question }[] {
+    if (!state) return [];
+    const out: { sectionIndex: number; question: Question }[] = [];
+    state.sections.forEach((section, sectionIndex) => {
+        if (sectionIndex > state.sectionIndex) return;
+        for (const question of section.questions) {
+            out.push({ sectionIndex, question });
+        }
+    });
+    return out;
+}
+
+function isCorrelatable(question: Question): boolean {
+    return question.kind === 'dimension' || question.kind === 'opposition' || (question.kind === 'choice' && !question.multipleChoices);
+}
+
 function questionLabel(sectionIndex: number, question: Question): string {
     const section = state?.sections[sectionIndex];
     const sectionLabel = section?.title || 'sezione ' + (sectionIndex + 1);
@@ -463,6 +486,7 @@ function addCustomPlot() {
         xQuestionId: null,
         ySectionIndex: null,
         yQuestionId: null,
+        singleResult: null,
         points: null,
         aggregate: false,
         clusters: 5,
@@ -472,18 +496,10 @@ function addCustomPlot() {
 }
 
 function renderCustomPlotCard(plot: CustomPlot): HTMLElement {
-    const xOptions = plotQuestions();
     const xQuestion = plot.xSectionIndex !== null && plot.xQuestionId !== null ? findQuestion(plot.xSectionIndex, plot.xQuestionId) : null;
     const yQuestion = plot.ySectionIndex !== null && plot.yQuestionId !== null ? findQuestion(plot.ySectionIndex, plot.yQuestionId) : null;
 
-    const header = el('div', { class: 'result-header' },
-        el('h2', {}, 'grafico personalizzato'),
-        el('button', { class: 'small danger', title: 'elimina grafico', onclick: () => {
-            customPlots = customPlots.filter((p) => p.plotId !== plot.plotId);
-            render();
-        } }, '✕'),
-    );
-
+    const xOptions = allQuestions();
     const xSelect = el('select', {
         onchange: (event) => {
             const value = (event.target as HTMLSelectElement).value;
@@ -497,7 +513,16 @@ function renderCustomPlotCard(plot: CustomPlot): HTMLElement {
             }
             plot.ySectionIndex = null;
             plot.yQuestionId = null;
+            plot.singleResult = null;
             plot.points = null;
+            if (plot.xSectionIndex !== null && plot.xQuestionId !== null) {
+                send({
+                    type: 'single-result-request',
+                    plotId: plot.plotId,
+                    sectionIndex: plot.xSectionIndex,
+                    questionId: plot.xQuestionId as QuestionId,
+                });
+            }
             render();
         },
     },
@@ -508,13 +533,18 @@ function renderCustomPlotCard(plot: CustomPlot): HTMLElement {
         }, questionLabel(opt.sectionIndex, opt.question))),
     );
 
-    const card = el('div', { class: 'card' }, header,
-        el('label', {}, 'asse x'),
-        xSelect,
+    const header = el('div', { class: 'result-header' },
+        el('div', { class: 'select-col' }, xSelect),
+        el('button', { class: 'small danger', title: 'elimina grafico', onclick: () => {
+            customPlots = customPlots.filter((p) => p.plotId !== plot.plotId);
+            render();
+        } }, '✕'),
     );
 
-    if (plot.xSectionIndex !== null && plot.xQuestionId !== null) {
-        const yOptions = xOptions.filter((opt) => !(opt.sectionIndex === plot.xSectionIndex && opt.question.id === plot.xQuestionId));
+    const card = el('div', { class: 'card' }, header);
+
+    if (xQuestion && isCorrelatable(xQuestion)) {
+        const yOptions = plotQuestions().filter((opt) => !(opt.sectionIndex === plot.xSectionIndex && opt.question.id === plot.xQuestionId));
         const ySelect = el('select', {
             onchange: (event) => {
                 const value = (event.target as HTMLSelectElement).value;
@@ -546,32 +576,54 @@ function renderCustomPlotCard(plot: CustomPlot): HTMLElement {
                 selected: (plot.ySectionIndex === opt.sectionIndex && plot.yQuestionId === opt.question.id) || null,
             }, questionLabel(opt.sectionIndex, opt.question))),
         );
-        card.append(el('label', {}, 'asse y'), ySelect);
+        header.insertBefore(el('div', { class: 'select-col' }, ySelect), header.lastElementChild);
     }
 
-    if (plot.points && xQuestion && yQuestion) {
-        card.append(renderCustomPlotGraph(plot, xQuestion, yQuestion));
-    } else if (plot.xSectionIndex !== null && plot.xQuestionId !== null && plot.ySectionIndex !== null && plot.yQuestionId !== null) {
-        card.append(el('p', { class: 'muted' }, 'caricamento...'));
+    const ySelected = plot.ySectionIndex !== null && plot.yQuestionId !== null;
+
+    if (ySelected && xQuestion && yQuestion) {
+        if (plot.points) {
+            card.append(renderCustomPlotGraph(plot, xQuestion, yQuestion));
+        } else {
+            card.append(el('p', { class: 'muted' }, 'caricamento...'));
+        }
+    } else if (!ySelected && xQuestion) {
+        if (plot.singleResult) {
+            const cards = renderResults([plot.singleResult], [xQuestion], render, undefined, undefined, true);
+            const resultCard = cards[0];
+            if (resultCard) {
+                resultCard.removeAttribute('data-question-id');
+                resultCard.classList.remove('card');
+                card.append(resultCard);
+            }
+        } else if (plot.xSectionIndex !== null && plot.xQuestionId !== null) {
+            card.append(el('p', { class: 'muted' }, 'caricamento...'));
+        }
     }
 
     return card;
 }
 
 function renderCustomPlotGraph(plot: CustomPlot, xQuestion: Question, yQuestion: Question): HTMLElement {
+    const xNumeric = xQuestion.kind === 'dimension' || xQuestion.kind === 'opposition';
+    const yNumeric = yQuestion.kind === 'dimension' || yQuestion.kind === 'opposition';
+    const isStacked = (xNumeric && !yNumeric) || (!xNumeric && !yNumeric);
+    const ratio = isStacked ? 1.5 : 1;
+
     const canvas = el('canvas', { class: 'result-canvas' });
     canvas.width = 400;
-    canvas.height = 400;
+    canvas.height = Math.round(400 / ratio);
 
     const draw = () => {
         const dpr = window.devicePixelRatio || 1;
         const cssWidth = canvas.getBoundingClientRect().width;
+        const cssHeight = Math.round(cssWidth / ratio);
         canvas.width = Math.round(cssWidth * dpr);
-        canvas.height = Math.round(cssWidth * dpr);
+        canvas.height = Math.round(cssHeight * dpr);
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawCustomPlot(ctx, cssWidth, plot, xQuestion, yQuestion);
+        drawCustomPlot(ctx, cssWidth, cssHeight, plot, xQuestion, yQuestion);
     };
 
     requestAnimationFrame(() => {
@@ -579,9 +631,6 @@ function renderCustomPlotGraph(plot: CustomPlot, xQuestion: Question, yQuestion:
     });
 
     const controls = el('div', {});
-
-    const xNumeric = xQuestion.kind === 'dimension' || xQuestion.kind === 'opposition';
-    const yNumeric = yQuestion.kind === 'dimension' || yQuestion.kind === 'opposition';
 
     if (xNumeric && yNumeric) {
         controls.append(el('label', { class: 'check-row' },
@@ -630,7 +679,7 @@ function renderCustomPlotGraph(plot: CustomPlot, xQuestion: Question, yQuestion:
     return el('div', {}, canvas, controls);
 }
 
-function drawCustomPlot(ctx: CanvasRenderingContext2D, size: number, plot: CustomPlot, xQuestion: Question, yQuestion: Question): void {
+function drawCustomPlot(ctx: CanvasRenderingContext2D, width: number, height: number, plot: CustomPlot, xQuestion: Question, yQuestion: Question): void {
     const points = plot.points || [];
     const xNumeric = xQuestion.kind === 'dimension' || xQuestion.kind === 'opposition';
     const yNumeric = yQuestion.kind === 'dimension' || yQuestion.kind === 'opposition';
@@ -638,7 +687,7 @@ function drawCustomPlot(ctx: CanvasRenderingContext2D, size: number, plot: Custo
     if (xNumeric && yNumeric) {
         const xMin = xQuestion.kind === 'dimension' ? 0 : -1;
         const yMin = yQuestion.kind === 'dimension' ? 0 : -1;
-        drawScatter2d(ctx, size, size, points as { x: number; y: number }[], xMin, 1, yMin, 1,
+        drawScatter2d(ctx, width, height, points as { x: number; y: number }[], xMin, 1, yMin, 1,
             xQuestion.minLabel || String(xMin), xQuestion.maxLabel || '1',
             yQuestion.minLabel || String(yMin), yQuestion.maxLabel || '1',
             xQuestion.title || '', yQuestion.title || '',
@@ -646,15 +695,15 @@ function drawCustomPlot(ctx: CanvasRenderingContext2D, size: number, plot: Custo
     } else if (xNumeric && !yNumeric) {
         const xMin = xQuestion.kind === 'dimension' ? 0 : -1;
         const yChoices = (yQuestion as ChoiceQuestion).choices;
-        drawBinnedStackedHistogram(ctx, size, size, xMin, 1, xQuestion.minLabel || String(xMin), xQuestion.maxLabel || '1', xQuestion.title || '', yChoices, points as { x: number; y: string }[], plot.bars);
+        drawBinnedStackedHistogram(ctx, width, height, xMin, 1, xQuestion.minLabel || String(xMin), xQuestion.maxLabel || '1', xQuestion.title || '', yChoices, points as { x: number; y: string }[], plot.bars);
     } else if (!xNumeric && yNumeric) {
         const xChoices = (xQuestion as ChoiceQuestion).choices;
         const yMin = yQuestion.kind === 'dimension' ? 0 : -1;
-        drawAverageBarplot(ctx, size, size, xChoices, yMin, 1, yQuestion.minLabel || String(yMin), yQuestion.maxLabel || '1', yQuestion.title || '', xQuestion.title || '', points as { x: string; y: number }[]);
+        drawAverageBarplot(ctx, width, height, xChoices, yMin, 1, yQuestion.minLabel || String(yMin), yQuestion.maxLabel || '1', yQuestion.title || '', xQuestion.title || '', points as { x: string; y: number }[]);
     } else {
         const xChoices = (xQuestion as ChoiceQuestion).choices;
         const yChoices = (yQuestion as ChoiceQuestion).choices;
-        drawStackedHistogram(ctx, size, size, xChoices, yChoices, xQuestion.title || '', yQuestion.title || '', points as { x: string; y: string }[]);
+        drawStackedHistogram(ctx, width, height, xChoices, yChoices, xQuestion.title || '', yQuestion.title || '', points as { x: string; y: string }[]);
     }
 }
 

@@ -184,6 +184,12 @@ export class WsServer {
                         const points = this.store.correlationData(sessionId, message.xSectionIndex, message.xQuestionId, message.ySectionIndex, message.yQuestionId);
                         this.send(ws, { type: 'correlation-data', plotId: message.plotId, points });
                         return;
+                    } else if (message.type === 'single-result-request') {
+                        const result = this.store.singleResult(sessionId, message.sectionIndex, message.questionId);
+                        if (result) {
+                            this.send(ws, { type: 'single-result', plotId: message.plotId, sectionIndex: message.sectionIndex, questionId: message.questionId, result });
+                        }
+                        return;
                     } else if (message.type === 'summary') {
                         const summary = this.store.getSummary(sessionId);
                         if (summary) this.send(ws, { type: 'summary', summary });

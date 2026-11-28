@@ -431,6 +431,16 @@ export class Store {
         return points;
     }
 
+    singleResult(id: SessionId, sectionIndex: number, questionId: QuestionId): QuestionResult | null {
+        const session = this.sessions[id];
+        if (!session) return null;
+        const section = session.vibecheck.sections[sectionIndex];
+        if (!section) return null;
+        const index = section.questions.findIndex((q) => q.id === questionId);
+        if (index < 0) return null;
+        return this.computeResults(id, sectionIndex)[index] || null;
+    }
+
     getStatus(): { sessions: number; participants: number } {
         let participants = 0;
         for (const session of Object.values(this.sessions)) {

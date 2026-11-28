@@ -356,11 +356,11 @@ function renderResultCard(result: QuestionResult, question: Question, rerender: 
         const expanded = detailedQuestions.has(question.id);
         const textResult = result as TextResult;
         if (textResult.answers.length > 0 || textResult.censored.length > 0) {
-            header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, expanded ? 'nascondi' : 'mostra'));
+            header.append(el('button', { class: 'small', title: expanded ? 'nascondi' : 'mostra', onclick: () => toggleDetailed(question.id, rerender) }, expanded ? '▲' : '▼'));
         }
     } else {
         const detailed = detailedQuestions.has(question.id);
-        header.append(el('button', { class: 'small', onclick: () => toggleDetailed(question.id, rerender) }, detailed ? 'riepilogo' : 'dettaglio'));
+        header.append(el('button', { class: 'small', title: detailed ? 'riepilogo' : 'dettaglio', onclick: () => toggleDetailed(question.id, rerender) }, detailed ? '▲' : '▼'));
     }
 
     const card = el('div', { class: 'card', 'data-question-id': question.id }, header);
